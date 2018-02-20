@@ -1,0 +1,9 @@
+argparse
+numpy
+pandas
+ipykernel
+keras
+tensorflow
+h5py
+pydot
+graphviz
