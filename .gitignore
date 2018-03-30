@@ -1,1 +1,4 @@
 *.iso
+melee_header
+data/
+jupyter_images/
