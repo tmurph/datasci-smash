@@ -140,9 +140,9 @@ $(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
 .PRECIOUS : $(HISTDIR)/%_hist.csv
 
 $(MASKDIR)/%_001_mask.jpg : $(SCRIPTDIR)/process_masks.py \
-		       $(HISTDIR)/%_hist.csv \
-		       $(NOBG_IMAGEDIR)/%_images \
-		       | $(MASKDIR)
+			    $(HISTDIR)/%_hist.csv \
+			    $(NOBG_IMAGEDIR)/%_images \
+			    | $(MASKDIR)
 	find $(@D) -iname $(*F)_\*.jpg -exec rm '{}' +
 	$(PYTHON) $(word 1,$^) $(@D) $(word 2,$^) @$(word 3,$^)
 
