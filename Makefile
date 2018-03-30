@@ -11,10 +11,10 @@ COMPILEMOVESDIR := $(SCRIPTDIR)/compile_moves
 RECORDAVIDIR := $(SCRIPTDIR)/record_avi
 
 DATADIR := data
-BG_IMAGEDIR := $(DATADIR)/all_images
-NOBG_IMAGEDIR := $(DATADIR)/all_images_nobg
-HISTDIR := $(DATADIR)/all_hist
-MASKDIR := $(DATADIR)/all_masks
+IMAGEDIR := $(DATADIR)/images
+NOBG_IMAGEDIR := $(DATADIR)/images_nobg
+HISTDIR := $(DATADIR)/hist
+MASKDIR := $(DATADIR)/masks
 
 CHARACTERS := falco falcon fox jigglypuff marth peach samus sheik
 COLORS := 0 1 2 3 4
@@ -41,7 +41,7 @@ stem_roots := $(foreach char,$(CHARACTERS),\
 		      $(char)_$(col)_$(st)_$(ori)))))
 
 bg_stems := $(addsuffix _bg_on,$(stem_roots))
-bg_targets := $(addprefix $(BG_IMAGEDIR)/,\
+bg_targets := $(addprefix $(IMAGEDIR)/,\
 		$(addsuffix _images,\
 		  $(bg_stems)))
 
@@ -60,15 +60,37 @@ mask_targets := $(addprefix $(MASKDIR)/,\
 	   	  $(addsuffix _masks,\
 	     	    $(mask_stems)))
 
-all : hist images masks
+usage : # this happens when make is called with no arguments
+	@echo "Usage:"
+	@echo "    make hist"
+	@echo "    make images"
+	@echo "    make masks"
+	@echo "    make all (alias for the previous three)"
+	@echo ""
+	@echo "Set the optional arguments CHARACTERS, COLORS, STAGES,"
+	@echo "  and ORIENTATIONS to limit the scope of make."
+	@echo ""
+	@echo "Set the optional arguments HISTDIR, IMAGEDIR, and MASKDIR"
+	@echo "  to change the destination of results."
+	@echo ""
+	@echo "Set the optional argument NOBG_IMAGEDIR to change the"
+	@echo "  location of intermediate, no-background images. This"
+	@echo "  option affects where \`make hist' and \`make masks'"
+	@echo "  look for no-background images to process."
+	@echo ""
+	@echo "Current directories are:"
+	@echo "  HISTDIR="$(HISTDIR)
+	@echo "  IMAGEDIR="$(IMAGEDIR)
+	@echo "  MASKDIR="$(MASKDIR)
+	@echo "  NOBG_IMAGEDIR="$(NOBG_IMAGEDIR)
+	@echo ""
+	@echo "Current scope is:"
+	@echo "  CHARACTERS="$(CHARACTERS)
+	@echo "  COLORS="$(COLORS)
+	@echo "  STAGES="$(STAGES)
+	@echo "  ORIENTATIONS="$(ORIENTATIONS)
 
-hist : $(HISTDIR)/hist.csv
-
-images : $(BG_IMAGEDIR)/images
-
-masks : $(MASKDIR)/masks
-
-$(BG_IMAGEDIR) $(NOBG_IMAGEDIR) $(HISTDIR) $(MASKDIR) :
+$(IMAGEDIR) $(NOBG_IMAGEDIR) $(HISTDIR) $(MASKDIR) :
 	mkdir -p $@
 
 $(SCRIPTDIR)/setup_files_logic.sh : $(dtm_setup_files) | $(SETUPFILESDIR)
@@ -114,21 +136,10 @@ $(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02)
 %.avi : $(SCRIPTDIR)/record_avi.sh %.dtm %_recording_sec
 	$< $@ $(word 2,$^) $$(cat $(word 3,$^))
 
-%_001.jpg : %_prefix_sec %.avi
-	find $(@D) -iname $(*F)_\*.jpg -exec rm '{}' +
-	$(FFMPEG) -nostats -hide_banner -loglevel panic \
-	  -ss $$(cat $(word 1,$^)) \
-	  -i $(word 2,$^) \
-	  -vf framestep=step=10 \
-	  $(@D)/$(*F)_%03d.jpg
-
-%_images : %_001.jpg
-	find $(@D) -iname $(*F)_\*.jpg >$@
-
-.PRECIOUS : %_images
-
 $(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
 	$(PYTHON) $< --header >$@
+
+.PRECIOUS : $(HISTDIR)/%_hist.csv
 
 %_hist.csv : $(HISTDIR)/hist_header.csv \
 	     $(SCRIPTDIR)/process_images.py \
@@ -137,7 +148,23 @@ $(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
 	cat $< >$@
 	$(PYTHON) $(word 2,$^) @$(word 3,$^) >>$@
 
-.PRECIOUS : $(HISTDIR)/%_hist.csv
+%_001.jpg : %_prefix_sec %.avi
+	find $(@D) -iname $(*F)_\*.jpg -exec rm '{}' +
+	$(FFMPEG) -nostats -hide_banner -loglevel panic \
+	  -ss $$(cat $(word 1,$^)) \
+	  -i $(word 2,$^) \
+	  -vf framestep=step=10 \
+	  $(@D)/$(*F)_%03d.jpg
+
+.PRECIOUS : %_images
+
+$(bg_targets) $(nobg_targets) : %_images : %_001.jpg
+	find $(@D) -iname $(*F)_\*.jpg >$@
+
+.PRECIOUS : $(HISTDIR)/%_images
+
+$(HISTDIR)/%_images : $(NOBG_IMAGEDIR)/%_images
+	find $(<D) -iname $(*F)_\*.jpg >$@
 
 $(MASKDIR)/%_001_mask.jpg : $(SCRIPTDIR)/process_masks.py \
 			    $(HISTDIR)/%_hist.csv \
@@ -151,17 +178,25 @@ $(MASKDIR)/%_001_mask.jpg : $(SCRIPTDIR)/process_masks.py \
 %_masks : %_001_mask.jpg
 	find $(@D) -iname $(*F)_\*.jpg >$@
 
-$(BG_IMAGEDIR)/images : $(bg_targets) | $(BG_IMAGEDIR)
-	cat $+ >$@
-
-$(NOBG_IMAGEDIR)/images : $(nobg_targets) | $(NOBG_IMAGEDIR)
-	cat $+ >$@
-
 $(HISTDIR)/hist.csv : $(HISTDIR)/hist_header.csv $(hist_targets) \
 		      | $(HISTDIR)
 	cat $< >$@
 	printf "%s\n" $(wordlist 2,$(words $^),$^) | \
 	  xargs -L 1 sed -e '1 d' >>$@
 
+$(IMAGEDIR)/images : $(bg_targets) | $(IMAGEDIR)
+	cat $+ >$@
+
+$(NOBG_IMAGEDIR)/images : $(nobg_targets) | $(NOBG_IMAGEDIR)
+	cat $+ >$@
+
 $(MASKDIR)/masks : $(mask_targets) | $(MASKDIR)
-	cat $^ >$@
+	cat $+ >$@
+
+hist : $(HISTDIR)/hist.csv
+
+images : $(IMAGEDIR)/images
+
+masks : $(MASKDIR)/masks
+
+all : hist images masks
