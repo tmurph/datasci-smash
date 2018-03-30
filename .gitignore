@@ -1,4 +1,3 @@
-*.iso
-melee_header
+scripts/record_avi/*
 data/
 jupyter_images/
