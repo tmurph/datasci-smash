@@ -1,4 +1,7 @@
-PYTHON := python3
+# I've been using the following to get specialty histograms
+# make hist MOVES_LIST=reference_moves_list
+# make images masks
+PYTHON := ../bin/python3
 TEXT2DTM := text2dtm
 FFMPEG := ffmpeg
 
@@ -6,30 +9,69 @@ SCRIPTDIR := scripts
 SETUPFILESDIR := $(SCRIPTDIR)/setup_files
 COMPILEMOVESDIR := $(SCRIPTDIR)/compile_moves
 RECORDAVIDIR := $(SCRIPTDIR)/record_avi
-IMAGEDIR := images
+
 DATADIR := data
+BG_IMAGEDIR := $(DATADIR)/all_images
+NOBG_IMAGEDIR := $(DATADIR)/all_images_nobg
+HISTDIR := $(DATADIR)/all_hist
+MASKDIR := $(DATADIR)/all_masks
 
 CHARACTERS := falco falcon fox jigglypuff marth peach samus sheik
 COLORS := 0 1 2 3 4
-STAGES := final fountain stadium story battlefield dreamland
+STAGES := battlefield dreamland final fountain stadium story
 ORIENTATIONS := left right
-BACKGROUNDS := on off
 
-targets := $(foreach char,$(CHARACTERS),\
-	    $(foreach col,$(COLORS),\
-		$(foreach st,$(STAGES),\
+MOVES_LIST := moves_list
+
+dtm_setup_roots := 10_to_debug 11_to_dairantou \
+		   $(addprefix 20_char_select_,$(CHARACTERS)) \
+		   21_scale_select 22_kind_select \
+		   $(addprefix 23_color_select_,$(COLORS)) \
+		   24_subcolor_to_stage \
+		   $(addprefix 25_stage_select_,$(STAGES)) \
+		   26_meleekind_to_exit 27_exit_to_go
+dtm_setup_files := $(addprefix $(SETUPFILESDIR)/,\
+		     $(addsuffix .txt,\
+		       $(dtm_setup_roots)))
+
+stem_roots := $(foreach char,$(CHARACTERS),\
+		$(foreach col,$(COLORS),\
+		  $(foreach st,$(STAGES),\
 		    $(foreach ori,$(ORIENTATIONS),\
-			$(foreach bg,$(BACKGROUNDS),\
-			    $(char)_$(col)_$(st)_$(ori)_bg_$(bg))))))
+		      $(char)_$(col)_$(st)_$(ori)))))
 
-all : $(DATADIR)/hist.csv
+bg_stems := $(addsuffix _bg_on,$(stem_roots))
+bg_targets := $(addprefix $(BG_IMAGEDIR)/,\
+		$(addsuffix _images,\
+		  $(bg_stems)))
 
-$(IMAGEDIR) $(DATADIR) :
-	mkdir $@
+nobg_stems := $(addsuffix _bg_off,$(stem_roots))
+nobg_targets := $(addprefix $(NOBG_IMAGEDIR)/,\
+		  $(addsuffix _images,\
+		    $(nobg_stems)))
 
-# need to list the setup files
-# to get the right error message if they dont exist
-$(SCRIPTDIR)/setup_files_logic.sh : | $(SETUPFILESDIR)
+hist_stems := $(nobg_stems)
+hist_targets := $(addprefix $(HISTDIR)/,\
+		  $(addsuffix _hist.csv,\
+		    $(hist_stems)))
+
+mask_stems := $(nobg_stems)
+mask_targets := $(addprefix $(MASKDIR)/,\
+	   	  $(addsuffix _masks,\
+	     	    $(mask_stems)))
+
+all : hist images masks
+
+hist : $(HISTDIR)/hist.csv
+
+images : $(BG_IMAGEDIR)/images
+
+masks : $(MASKDIR)/masks
+
+$(BG_IMAGEDIR) $(NOBG_IMAGEDIR) $(HISTDIR) $(MASKDIR) :
+	mkdir -p $@
+
+$(SCRIPTDIR)/setup_files_logic.sh : $(dtm_setup_files) | $(SETUPFILESDIR)
 
 %_setup_files_list : $(SCRIPTDIR)/setup_files_logic.sh
 	$< $@ >$@
@@ -40,23 +82,28 @@ $(SCRIPTDIR)/setup_files_logic.sh : | $(SETUPFILESDIR)
 %_files_prefix_count : %_setup_files_list
 	cat $< | xargs grep -v '^#' | wc -l >$@
 
-$(SCRIPTDIR)/compile_moves.py : $(COMPILEMOVESDIR)/character_frames.csv
-$(SCRIPTDIR)/compile_moves.py : $(COMPILEMOVESDIR)/dtm_inputs.csv
+$(SCRIPTDIR)/compile_moves.py : $(COMPILEMOVESDIR)/character_frames.csv \
+				$(COMPILEMOVESDIR)/dtm_inputs.csv
 
 %_moves_prefix_count : $(SCRIPTDIR)/compile_moves.py %_setup_moves_list
 	$(PYTHON) $(word 1,$^) @$(word 2,$^) | wc -l >$@
 
-%_total_moves_count : $(SCRIPTDIR)/compile_moves.py %_setup_moves_list moves_list moves_list
+%_total_moves_count : $(SCRIPTDIR)/compile_moves.py %_setup_moves_list \
+		      $(MOVES_LIST) $(MOVES_LIST)
 	$(PYTHON) $(word 1,$+) \
 	  $(patsubst %,@%,$(wordlist 2,$(words $+),$+)) | wc -l >$@
 
-%_prefix_sec : $(SCRIPTDIR)/time_arithmetic.sh %_files_prefix_count %_moves_prefix_count
+%_prefix_sec : $(SCRIPTDIR)/time_arithmetic.sh %_files_prefix_count \
+	       %_moves_prefix_count
 	$< $(wordlist 2,$(words $^),$^) >$@
 
-%_recording_sec : $(SCRIPTDIR)/time_arithmetic.sh %_files_prefix_count %_moves_prefix_count %_total_moves_count
+%_recording_sec : $(SCRIPTDIR)/time_arithmetic.sh %_files_prefix_count \
+		  %_moves_prefix_count %_total_moves_count
 	DENOM=120 $< $(wordlist 2,$(words $^),$^) >$@
 
-%.dtm : %_setup_files_list $(SCRIPTDIR)/compile_moves.py %_setup_moves_list moves_list moves_list melee_header
+%.dtm : %_setup_files_list $(SCRIPTDIR)/compile_moves.py \
+	%_setup_moves_list $(MOVES_LIST) $(MOVES_LIST) \
+	$(RECORDAVIDIR)/melee_header
 	{ cat $(word 1,$+) | xargs cat ; \
 	  $(PYTHON) $(word 2,$+) $(patsubst %,@%,$(wordlist 3,5,$+)); \
 	} | $(TEXT2DTM) $@ $(word 6,$+) -
@@ -67,23 +114,54 @@ $(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02)
 %.avi : $(SCRIPTDIR)/record_avi.sh %.dtm %_recording_sec
 	$< $@ $(word 2,$^) $$(cat $(word 3,$^))
 
-.PRECIOUS : $(IMAGEDIR)/%_images
-
-$(IMAGEDIR)/%_images : %_prefix_sec %.avi | $(IMAGEDIR)
+%_001.jpg : %_prefix_sec %.avi
 	find $(@D) -iname $(*F)_\*.jpg -exec rm '{}' +
 	$(FFMPEG) -nostats -hide_banner -loglevel panic \
 	  -ss $$(cat $(word 1,$^)) \
 	  -i $(word 2,$^) \
 	  -vf framestep=step=10 \
-	  $*_%03d.jpg
+	  $(@D)/$(*F)_%03d.jpg
+
+%_images : %_001.jpg
 	find $(@D) -iname $(*F)_\*.jpg >$@
 
-$(DATADIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(DATADIR)
+.PRECIOUS : %_images
+
+$(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
 	$(PYTHON) $< --header >$@
 
-$(DATADIR)/%_hist.csv : $(SCRIPTDIR)/process_images.py $(IMAGEDIR)/%_images | $(DATADIR)
-	$(PYTHON) $(word 1,$^) @$(word 2,$^) >$@
+%_hist.csv : $(HISTDIR)/hist_header.csv \
+	     $(SCRIPTDIR)/process_images.py \
+	     %_images \
+	     | $(HISTDIR)
+	cat $< >$@
+	$(PYTHON) $(word 2,$^) @$(word 3,$^) >>$@
 
-histograms := $(addprefix $(DATADIR)/,$(addsuffix _hist.csv,$(targets)))
-$(DATADIR)/hist.csv : $(DATADIR)/hist_header.csv $(histograms) | $(DATADIR)
+.PRECIOUS : $(HISTDIR)/%_hist.csv
+
+$(MASKDIR)/%_001_mask.jpg : $(SCRIPTDIR)/process_masks.py \
+		       $(HISTDIR)/%_hist.csv \
+		       $(NOBG_IMAGEDIR)/%_images \
+		       | $(MASKDIR)
+	find $(@D) -iname $(*F)_\*.jpg -exec rm '{}' +
+	$(PYTHON) $(word 1,$^) $(@D) $(word 2,$^) @$(word 3,$^)
+
+.PRECIOUS : %_masks
+
+%_masks : %_001_mask.jpg
+	find $(@D) -iname $(*F)_\*.jpg >$@
+
+$(BG_IMAGEDIR)/images : $(bg_targets) | $(BG_IMAGEDIR)
 	cat $+ >$@
+
+$(NOBG_IMAGEDIR)/images : $(nobg_targets) | $(NOBG_IMAGEDIR)
+	cat $+ >$@
+
+$(HISTDIR)/hist.csv : $(HISTDIR)/hist_header.csv $(hist_targets) \
+		      | $(HISTDIR)
+	cat $< >$@
+	printf "%s\n" $(wordlist 2,$(words $^),$^) | \
+	  xargs -L 1 sed -e '1 d' >>$@
+
+$(MASKDIR)/masks : $(mask_targets) | $(MASKDIR)
+	cat $^ >$@
