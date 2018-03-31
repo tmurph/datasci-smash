@@ -2,6 +2,28 @@
 #+PROPERTY: header-args:jupyter+ :kernel datasci-smash
 #+PROPERTY: header-args:jupyter+ :output-dir ./jupyter_images
 
+* DONE tweak the makefile a bit
+CLOSED: [2018-03-30 Fri 17:18]
+- Note taken on [2018-03-30 Fri 17:13] \\
+  okay, sweet.  don’t have any duplication of image files or anything, but it’s still relatively easy to control where `make hist' looks for the images, and the same for `make masks'.  renaming folders is a *bitch* but I think that’s just a fact of life … people shouldn’t do that.
+  
+  it’s actually not that bad to handle, just nuke the various _images and _masks files and remake the overall /images and /masks summary files.  of course, that took a while to get to the point where it wouldn’t nuke images and try to rerecord them, but yay!  it’s there!
+  
+  I feel like I’m happy enough with this guy.  time to move on to running the keras network.  
+  
+  if we need to tweak the mask files later, or if we bump into issues using docker to parallelize, then we’ll cross that bridge when we come to it
+- Note taken on [2018-03-30 Fri 16:43] \\
+  the default target is a usage message, which I like
+- Note taken on [2018-03-30 Fri 15:44] \\
+  yup this took a good bit of work, but I’m fairly happy with it now.
+  
+  histograms depend on the nobg folder, but it’s more of a temporary workspace
+it needs cleaner separation between the full images (with bg on) and the reference images (with bg off)
+
+that probably needs a new variable for reference moves (and rename “moves list” to “full moves list”)
+
+and maybe think harder about how to reuse the existing rules just with different targets.  I’m sure make can handle it, somehow.
+
 * Setup
 
 #+BEGIN_SRC jupyter
@@ -9,7 +31,7 @@
   import matplotlib
   import matplotlib.pyplot as plt
   from mpl_toolkits.mplot3d import Axes3D
-  plt.rcParams['figure.figsize'] = [8, 8]
+  plt.rcParams['figure.figsize'] = [9, 8]
 #+END_SRC
 
 #+RESULTS:
@@ -97,6 +119,18 @@
 
 * Localization by Histogram
 
+** DONE why do we make reference histograms instead of using all the histogram data?
+CLOSED: [2018-03-05 Mon 14:29]
+I’m pretty sure this is because there’s so much noise in the full data.  It was easier to make reference data (even though I couldn’t make that work in the makefile) and just use that for the segmentation / localization.
+
+** DONE add makefile for reference data
+CLOSED: [2018-03-17 Sat 19:21]
+- Note taken on [2018-03-17 Sat 19:21] \\
+  this was actually easy, just set up a MOVES_LIST variable in the Makefile and away we go
+we need to generate this stuff for all the characters and all the colors
+
+there’s some issue where it’s so close to the basic data, but just different enough
+
 ** Reference Histograms
 We’ve got a lot of reference data.
 #+BEGIN_SRC jupyter
@@ -113,6 +147,12 @@ We’ve got a lot of reference data.
 #+END_SRC
 
 #+RESULTS:
+
+*** Exploratory Analysis
+:PROPERTIES:
+:header-args:jupyter+: :exports none
+:END:
+Need to find a way to cut off the histograms for backpropagation purposes.
 
 We can plot the summary histograms.
 #+BEGIN_SRC jupyter :results file
@@ -137,12 +177,13 @@ We can plot the summary histograms.
 #+END_SRC
 
 #+RESULTS:
-[[file:./jupyter_images/93298t8p.png]]
+[[file:./jupyter_images/58906J8V.png]]
 
 Just from visual inspection, we can see spikes that mark the most character-defining hues.  So let’s pick thresholding values that cut off just the tops of those peaks.
 
+These are the thresholds I found by eyeballing.
 #+BEGIN_SRC jupyter
-  thresh_dict = {0: 27, 1: 11, 2: 12, 3: 17, 4: 18}
+  eyeball_thresh_dict = {0: 27, 1: 11, 2: 12, 3: 17, 4: 18}
 #+END_SRC
 
 #+RESULTS:
@@ -166,13 +207,203 @@ Just from visual inspection, we can see spikes that mark the most character-defi
                                   cv2.NORM_MINMAX, cv2.CV_8U)
       # axarr[i, j].plot(norm_hist)
       axarr[j].plot(norm_hist)
-      axarr[j].axhline(thresh_dict[color])
+      axarr[j].axhline(eyeball_thresh_dict[color])
 
   fig.tight_layout()
 #+END_SRC
 
 #+RESULTS:
 [[file:./jupyter_images/932986Gw.png]]
+
+Ugh, this works, but constantly reshaping np arrays is just so annoying.
+#+BEGIN_SRC jupyter
+  def select_hist(character, color):
+      float_hist = agg_df.loc[character, color].values.reshape(180, 1)
+      norm_hist = cv2.normalize(float_hist, float_hist, 0, 255,
+                                cv2.NORM_MINMAX, cv2.CV_8U)
+      return norm_hist
+#+END_SRC
+
+#+RESULTS:
+
+This feels like the worst hack, but eh, it works.
+#+BEGIN_SRC jupyter
+  def pick_peaks(hist):
+      list_hist = hist.reshape(180)
+      first = [list_hist[0] > list_hist[1]]
+      middle = [list_hist[i] < e > list_hist[i+2] for i, e
+                in enumerate(list_hist[1:-1])]
+      last = [list_hist[-2] < list_hist[-1]]
+      return first + middle + last
+#+END_SRC
+
+#+RESULTS:
+
+This is easy to explain, I think, but the graph is really hard to interpret.  It’s like watching for when the noise drops out of my cutoff and I’m left with just the big peaks.
+#+BEGIN_SRC jupyter
+  def count_peaks(hist):
+      arr = np.zeros(255, dtype=np.uint8)
+      peaks = pick_peaks(hist)
+      for x in range(hist.max()):
+          arr[x] = sum(abovep and peakp for abovep, peakp in zip(hist > x, peaks))
+      return arr
+#+END_SRC
+
+#+RESULTS:
+
+Kinda makes me wonder … if I could write code that sliced off the top 25% of the area under the histogram, would that work?  But JFC I don’t want to write that code.
+
+And this is the hackiest way to find a transition from “noisy peaks” to “big peaks”.  When does my cutoff line get past the noise of closely bunched together peaks and into the signal of distantly removed peaks?
+#+BEGIN_SRC jupyter
+  from itertools import groupby
+
+  def first_peak_run(hist, min_length=4):
+      peaks = count_peaks(hist)
+      for k, g in groupby(peaks):
+          if len(list(g)) >= min_length:
+              peak_count = k
+              break
+      for i, e in enumerate(peaks):
+          if e == peak_count:
+              first_index = i
+              break
+      return first_index
+#+END_SRC
+
+#+RESULTS:
+
+And these are the thresholds from my code.
+
+#+BEGIN_SRC jupyter :results verbatim
+  calc_thresh_dict = {n: first_peak_run(select_hist('samus', n))
+                      for n in range(5)}
+  calc_thresh_dict
+#+END_SRC
+
+#+RESULTS:
+: {0: 10, 1: 12, 2: 11, 3: 14, 4: 27}
+
+Here’s what the thresholds look like, side by side.
+#+BEGIN_SRC jupyter :results file
+  indices = agg_df.index.levels
+  char_index = indices[0]
+  color_index = indices[1]
+
+  fig, axarr = plt.subplots(len(char_index), len(color_index),
+                          sharey=True)
+  char = 'samus'
+  # for i, char in enumerate(char_index):
+  for j, color in enumerate(color_index):
+      if j == 0:
+          axarr[j].set_ylabel(char, rotation=0, size='large')
+      axarr[j].set_title(color)
+
+      float_hist = agg_df.loc[char, color].values.reshape(180, 1)
+      norm_hist = cv2.normalize(float_hist, float_hist, 0, 255,
+                                  cv2.NORM_MINMAX, cv2.CV_8U)
+      axarr[j].plot(norm_hist)
+      axarr[j].axhline(eyeball_thresh_dict[color], color='b')
+      axarr[j].axhline(calc_thresh_dict[color], color='r')
+
+  fig.tight_layout()
+#+END_SRC
+
+#+RESULTS:
+[[file:./jupyter_images/58906HUj.png]]
+
+*** God Dammit the Peak Height Heuristic kinda fails
+
+Check this out.
+
+#+BEGIN_SRC jupyter
+  df = pd.read_csv('reference_data/samus_2_fountain_left_bg_off_hist.csv')
+
+  cha_col_df = df.drop(['stage', 'orientation', 'number'], axis=1)
+  h_cols = cha_col_df.columns.str.contains('H')
+  h_total = cha_col_df.iloc[:, h_cols].sum(axis=1)
+
+  cha_col_df = cha_col_df.loc[h_total > 0]
+  h_total = h_total.loc[h_total > 0]
+
+  cha_col_df.iloc[:, h_cols] = cha_col_df.iloc[:, h_cols].divide(h_total, axis='index')
+  agg_df = cha_col_df.groupby(['character', 'color']).agg(np.mean)
+
+  float_hist = agg_df.loc['samus', 2].values
+  float_hist = float_hist.reshape(len(float_hist), 1)
+  back_proj_hist = cv2.normalize(float_hist, float_hist,
+                                 alpha=0, beta=int8_max,
+                                 norm_type=cv2.NORM_MINMAX,
+                                 dtype=cv2.CV_8U)
+  back_proj_hist = back_proj_hist.reshape(len(back_proj_hist))
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter :results file
+  plt.plot(back_proj_hist)
+#+END_SRC
+
+#+RESULTS:
+[[file:./jupyter_images/589061ID.png]]
+
+Tough to eyeball the problem buuuuut the first peak here is actually 4 units high.  Our heuristic of “climb up until you get to a peak 4 higher than the last one” doesn’t really work.  We could probably tweak it, like “ignore the first peak” but seriously this is starting to smell like real hack work.
+
+Let’s try cutting off the top X% of the histogram.
+
+#+BEGIN_SRC jupyter
+  def cutoff_thresh(hist, percentage=0.25):
+      "Determine a threshold to select the top percentage of HIST."
+      total_area = hist.sum()
+      result = 0
+      for x in range(hist.max(), 0, -1):
+          cutoff_area = sum(map(lambda e: max(e - x, 0), hist))
+          if cutoff_area > total_area * percentage:
+              result = x
+              break
+      return result
+#+END_SRC
+
+#+RESULTS:
+
+Nope, that’s shitty, there’s no real good correspondence with the stuff I found earlier.
+#+NAME: perc_thresh_code
+#+BEGIN_SRC jupyter :var perc=0.55 :results verbatim
+  perc_thresh_dict = {n: cutoff_thresh(select_hist('samus', n).reshape(180),
+                                       percentage=perc) for n in range(5)}
+  perc_thresh_dict
+#+END_SRC
+
+#+RESULTS:
+: {0: 22, 1: 14, 2: 11, 3: 16, 4: 15}
+
+#+BEGIN_SRC jupyter :results file
+  indices = agg_df.index.levels
+  char_index = indices[0]
+  color_index = indices[1]
+
+  fig, axarr = plt.subplots(len(char_index), len(color_index),
+                          sharey=True)
+  char = 'samus'
+  # for i, char in enumerate(char_index):
+  for j, color in enumerate(color_index):
+      if j == 0:
+          axarr[j].set_ylabel(char, rotation=0, size='large')
+      axarr[j].set_title(color)
+
+      float_hist = agg_df.loc[char, color].values.reshape(180, 1)
+      norm_hist = cv2.normalize(float_hist, float_hist, 0, 255,
+                                  cv2.NORM_MINMAX, cv2.CV_8U)
+      axarr[j].plot(norm_hist)
+      axarr[j].axhline(perc_thresh_dict[color], color='b')
+      axarr[j].axhline(calc_thresh_dict[color], color='r')
+
+  fig.tight_layout()
+#+END_SRC
+
+#+RESULTS:
+[[file:./jupyter_images/58906GEz.png]]
+
+Hmm but actually maybe that’s not so bad?
 
 ** Object Segmentation and Localization
 
@@ -198,7 +429,8 @@ So let’s now see how we can do with object localization / segmentation.  That 
       back_proj = norm_hist.flatten()[h_img.ravel()].reshape(h_img.shape)
       back_proj &= hsv_mask
 
-      _, thresh_img = cv2.threshold(back_proj, thresh_dict[color], 255, cv2.THRESH_BINARY)
+      _, thresh_img = cv2.threshold(back_proj, thresh_dict[color],
+                                    255, cv2.THRESH_BINARY)
 
       blur_img = cv2.GaussianBlur(thresh_img, (11, 11), 0)
       _, contours, _ = cv2.findContours(blur_img, cv2.RETR_EXTERNAL,
@@ -222,6 +454,17 @@ So let’s now see how we can do with object localization / segmentation.  That 
 
 #+RESULTS:
 
+I think I actually may get better results from including just the tip of the last noisy peak?
+#+NAME: calc_thresh_code
+#+BEGIN_SRC jupyter :results verbatim
+  calc_thresh_dict = {n: first_peak_run(select_hist('samus', n)) - 1
+                      for n in range(5)}
+  calc_thresh_dict
+#+END_SRC
+
+#+RESULTS:
+: {0: 9, 1: 11, 2: 10, 3: 13, 4: 26}
+
 #+BEGIN_SRC jupyter :results file
   indices = agg_df.index.levels
   char_index = indices[0]
@@ -243,24 +486,158 @@ So let’s now see how we can do with object localization / segmentation.  That 
       mask, thresh, final, segment = four_images(char, color, stage,
                                                  orientation,
                                                  img_number,
-                                                 agg_df, thresh_dict)
+                                                 agg_df,
+                                                 perc_thresh_dict)
 
       axarr[0, i].imshow(mask, cmap='gray')
       axarr[1, i].imshow(thresh, cmap='gray')
       axarr[2, i].imshow(final)
       axarr[3, i].imshow(segment, cmap='gray')
-
-  fig.tight_layout()
 #+END_SRC
 
 #+RESULTS:
-[[file:./jupyter_images/93298HR2.png]]
+[[file:./jupyter_images/58906GSb.png]]
 
 This produces some really decent localization annotations.  And when we intersect the hue mask with the bounding box we get some decent segmentation.
 
-There are definitely some bullshit edge cases.  Samus has a lot of yellow and red in her costume.  She also makes a lot of fire (yellow/red/orange) that gets found as a false positive.  In extreme cases, like when she’s curled in a ball, this fire is boxed to her exclusion.  Additionally, Yoshi’s Story has these red shy guys that are frequent false-positives.
+There are definitely some bullshit edge cases.  Samus has a lot of yellow and red in her costume.  She also makes a lot of fire (yellow/red/orange) that gets found as a false positive.  In extreme cases, like when she’s curled in a ball above an exploding bomb, the bomb explosion is found but nothing of her.  Additionally, Yoshi’s Story has these red shy guys that are frequent false-positives.
 
 Part of me says, go ahead and train the fucking Keras model.  If / when it gets shitty results, come back and clean the data some more.
+
+*** Does it work with the reference data?
+We got in trouble earlier trying to use the thresholding algorithm with a different data set.  Is the percentile algorithm better?
+
+#+BEGIN_SRC jupyter
+  def read_agg_df(path):
+      df = pd.read_csv(path)
+
+      cha_col_df = df.drop(['stage', 'orientation', 'number'], axis=1)
+      h_cols = cha_col_df.columns.str.contains('H')
+      h_total = cha_col_df.iloc[:, h_cols].sum(axis=1)
+
+      cha_col_df = cha_col_df.loc[h_total > 0]
+      h_total = h_total.loc[h_total > 0]
+
+      cha_col_df.iloc[:, h_cols] = cha_col_df.iloc[:, h_cols].divide(h_total, axis='index')
+      agg_df = cha_col_df.groupby(['character', 'color']).agg(np.mean)
+      return agg_df
+#+END_SRC
+
+#+RESULTS:
+
+#+NAME: set_agg_df
+#+HEADER: :var path="reference_data/samus_2_fountain_left_bg_off_hist.csv"
+#+BEGIN_SRC jupyter
+  agg_df = read_agg_df(path)
+#+END_SRC
+
+#+RESULTS: set_agg_df
+
+And let’s redefine that histogram function to be more functional, less global variable.
+
+#+BEGIN_SRC jupyter
+  def select_hist(agg_df, character, color):
+      float_hist = agg_df.loc[character, color].values.reshape(180, 1)
+      norm_hist = cv2.normalize(float_hist, float_hist, 0, 255,
+                                cv2.NORM_MINMAX, cv2.CV_8U)
+      return norm_hist.reshape(180)
+#+END_SRC
+
+#+RESULTS:
+
+Check it works.
+
+#+BEGIN_SRC jupyter
+  cutoff_thresh(select_hist(agg_df, 'samus', 2))
+#+END_SRC
+
+#+RESULTS:
+: 40
+
+Okay so that’s a number, but where is it on the histogram?
+
+#+BEGIN_SRC jupyter :results file
+  plt.plot(select_hist(agg_df, 'samus', 2))
+  plt.axhline(cutoff_thresh(select_hist(agg_df, 'samus', 2)))
+#+END_SRC
+
+#+RESULTS:
+[[file:./jupyter_images/589060Tv.png]]
+
+Eh?  Looks okay?  How does it perform on my data set?
+
+Gotta get all the reference histograms.
+
+#+CALL: set_agg_df(path="reference_data/hist.csv")
+
+#+RESULTS:
+
+#+NAME: set_perc_thresh
+#+BEGIN_SRC jupyter :var perc=0.55 :results verbatim
+  perc_thresh_dict = {n: cutoff_thresh(select_hist(agg_df, 'samus', n),
+                                       percentage=perc) for n in range(5)}
+  perc_thresh_dict
+#+END_SRC
+
+#+RESULTS: set_perc_thresh
+: {0: 22, 1: 14, 2: 11, 3: 16, 4: 15}
+
+Let’s make that image code reusable.
+
+#+NAME: make_segmented_images
+#+HEADER: :var dictionary="perc_thresh_dict"
+#+BEGIN_SRC jupyter :results file
+  indices = agg_df.index.levels
+  char_index = indices[0]
+  color_index = indices[1]
+
+  nrows = 4
+  ncols = 5
+
+  fig, axarr = plt.subplots(nrows, ncols, sharey=True)
+
+  for i in range(ncols):
+      char = 'samus'
+      color = np.random.choice(5)
+      stage = np.random.choice(['final', 'fountain', 'stadium', 'story',
+                              'battlefield', 'dreamland'])
+      orientation = np.random.choice(['left', 'right'])
+      img_number = np.random.randint(300)
+
+      mask, thresh, final, segment = four_images(char, color, stage,
+                                                 orientation,
+                                                 img_number,
+                                                 agg_df,
+                                                 eval(dictionary))
+
+      axarr[0, i].imshow(mask, cmap='gray')
+      axarr[1, i].imshow(thresh, cmap='gray')
+      axarr[2, i].imshow(final)
+      axarr[3, i].imshow(segment, cmap='gray')
+#+END_SRC
+
+#+CALL: make_segmented_images(dictionary="perc_thresh_dict")
+
+#+RESULTS:
+[[file:./jupyter_images/58906bAq.png]]
+
+Not bad.  I like how it’s better at picking up Samus’ gun.  Still got those shy guy and fire problems.
+
+What about different thresholds?
+
+#+CALL: set_perc_thresh(perc=0.55)
+
+#+RESULTS:
+: {0: 22, 1: 14, 2: 11, 3: 16, 4: 15}
+
+#+CALL: make_segmented_images(dictionary="perc_thresh_dict")
+
+#+RESULTS:
+[[file:./jupyter_images/58906Pw2.png]]
+
+I can’t really tell a difference from eyeballing.  Obvi a lower percentage / higher cutoff produces grainier / more disjointed masks.  Let’s just arbitrarily pick 55% as our threshold.
+
+Yeah, fine, works with ref data.
 
 * Neural Network Training
 The hard part!  The fun part!  The part where I need a mentor!  Let’s do it!
@@ -698,14 +1075,17 @@ Note also that the final loss is measured by mean squared error and we’re targ
 
 #+RESULTS:
 
-#+BEGIN_SRC jupyter :results replace :file model.png
+#+BEGIN_SRC jupyter :results replace :file model.png :output-dir
   model = init_model()
 
   from keras.utils.vis_utils import plot_model
   plot_model(model, show_shapes=True, show_layer_names=True)
 #+END_SRC
 
-So technically the model code runs, though I can’t graph it so I dunno how well it’s matches my expectations.  Time to generate some training and validation sets.
+#+RESULTS:
+[[file:model.png]]
+
+Time to generate some training and validation sets.
 
 Here’s a snag, though.  If we wanna do data augmentation (and I guess we do?) then we can’t easily pull out =(image, annotation)= pairs.  It’s simple to randomly transform the images with ~ImageDataGenerator.flow_from_directory~ but *good luck* trying to apply the same set of random transformations to the annotations.
 
@@ -715,53 +1095,142 @@ So, quick digression, we’ve gotta process the images to their masks.
 
 ** Mask Script
 
-#+BEGIN_SRC python :tangle scripts/process_masks.py
+#+BEGIN_SRC jupyter :tangle scripts/process_masks.py :eval no
+  import os
   import sys
   import argparse
   import re
-  import numpy as np
+  from itertools import groupby
 
+  import numpy as np
+  import pandas as pd
   import cv2
 
-  # this is so broken it's awful
-  # def hist_from_img(img_name, agg_df):
-  #     target_hist = agg_df.loc[character, color].values.reshape(180, 1)
-  #     norm_hist = cv2.normalize(target_hist, target_hist, 0, 255,
-  #                             cv2.NORM_MINMAX, cv2.CV_8U)
-  #     return norm_hist
+  int8_max = 255
+
+  hue_chan = 0
+  hue_min = 0
+  hue_max = 180
+
+  img_re = re.compile('(?:[^/]*/)*'
+                      '(?P<character>[^_]*)_'
+                      '(?P<color>[^_]*)_'
+                      '(?P<stage>[^_]*)_'
+                      '(?P<orientation>[^_]*)_'
+                      'bg_(?P<background>[^_]*)_'
+                      '(?P<number>[0-9]{3})'
+                      '.jpg')
 
 
-  def mask_from_img(img_name, backproj_hist):
-      hsv_min = np.array([0, 50, 50])
-      hsv_max = np.array([179, 255, 255])
+  def writeable_dir(prospective_dir):
+      if not os.path.isdir(prospective_dir):
+          raise Exception(f"{prospective_dir} is not a valid path")
+      if not os.access(prospective_dir, os.W_OK):
+          raise Exception(f"{prospective_dir} is not a writeable dir")
+      return prospective_dir
 
-      hsv_img = cv2.cvtColor(cv2.imread(img_name), cv2.COLOR_BGR2HSV)
+
+  class CharacterColorHistogram():
+
+
+      def __init__(self, master_hist):
+          # Reduce the master hue histogram to character/color averages
+          cha_col_df = master_hist.drop(
+              ['stage', 'orientation', 'number'], axis=1)
+          h_cols = cha_col_df.columns.str.contains('H')
+          h_total = cha_col_df.iloc[:, h_cols].sum(axis=1)
+
+          cha_col_df = cha_col_df.loc[h_total > 0]
+          h_total = h_total.loc[h_total > 0]
+
+          cha_col_df.iloc[:, h_cols] = cha_col_df.iloc[:, h_cols].divide(
+              h_total, axis='index')
+          agg_df = cha_col_df.groupby(['character', 'color']).agg(np.mean)
+
+          self._aggregate_df = agg_df
+
+
+      def histogram(self, character, color):
+          float_hist = self._aggregate_df.loc[character, color].values
+          float_hist = float_hist.reshape(len(float_hist), 1)
+          back_proj_hist = cv2.normalize(float_hist, float_hist,
+                                         alpha=0, beta=int8_max,
+                                         norm_type=cv2.NORM_MINMAX,
+                                         dtype=cv2.CV_8U)
+          back_proj_hist = back_proj_hist.reshape(len(back_proj_hist))
+          return back_proj_hist
+
+
+  def cutoff_thresh(hist, min_peak_height=4):
+      "Determine a threshold to select tall peaks from HIST."
+      # where are the peaks?
+      first = hist[0] > hist[1]
+      middle = [hist[i] < e > hist[i+2]
+                for i, e in enumerate(hist[1:-1])]
+      last = hist[-2] < hist[-1]
+      peak_p = [first] + middle + [last]
+
+      # how are the peaks spaced out?
+      peaks_above_x = np.zeros(int8_max, dtype=np.uint8)
+      for x in range(hist.max()):
+          peaks_above_x[x] = sum(abovep and peakp
+                                 for abovep, peakp
+                                 in zip(hist > x, peak_p))
+
+      # when's the first big peak?
+      for k, g in groupby(peaks_above_x):
+          peak_height = len(list(g))
+          if peak_height >= min_peak_height:
+              peak_key = k
+              break
+      for i, e in enumerate(peaks_above_x):
+          if e == peak_key:
+              first_index = i
+              break
+
+      return first_index
+
+
+  def mask_from_image(hsv_img, back_proj_hist, thresh,
+                      hsv_min=np.array([0, 50, 50]),
+                      hsv_max=np.array([179, 255, 255]),
+                      blur_size=11):
+      """Calculate a greyscale ROI mask from HSV_IMG.
+
+  Backproject the hues of HSV_IMG according to BACK_PROJ_HIST and cut off
+  the backprojection at THRESH.  In case multiple regions survive the
+  cutoff, select the region with the largest area.
+
+      """
+      # backproject hues, but mask out pixels with little saturation/value
       hsv_mask = cv2.inRange(hsv_img, hsv_min, hsv_max)
-      h_img = hsv_img[:, :, 0]
-      h_hist = cv2.calcHist([h_img], [0], hsv_mask, [180], [0, 180])
-
-      back_proj = backproj_hist.flatten()[h_img.ravel()].reshape(h_img.shape)
+      h_img = hsv_img[:, :, hue_chan]
+      back_proj = back_proj_hist[h_img.ravel()].reshape(h_img.shape)
       back_proj &= hsv_mask
 
-      _, thresh_img = cv2.threshold(back_proj, thresh_dict[color], 255,
+      # theshold and select largest region
+      _, thresh_img = cv2.threshold(back_proj, thresh, int8_max,
                                     cv2.THRESH_BINARY)
-
-      blur_img = cv2.GaussianBlur(thresh_img, (11, 11), 0)
+      blur_img = cv2.GaussianBlur(thresh_img, (blur_size, blur_size),
+                                  cv2.BORDER_CONSTANT)
       _, contours, _ = cv2.findContours(blur_img, cv2.RETR_EXTERNAL,
-                                      cv2.CHAIN_APPROX_SIMPLE)
+                                        cv2.CHAIN_APPROX_SIMPLE)
       contours = sorted(contours, key=cv2.contourArea, reverse=True)
+
+      # calculate greyscale mask
       if contours:
           large_contour = contours[0]
-          x, y, w, h = cv2.boundingRect(large_contour)
-          final_img = cv2.rectangle(rgb_img.copy(), (x, y),
-                                      (x + w, y + h), 255, 3)
-          final_mask = cv2.rectangle(np.zeros(blur_img.shape,
-                                              dtype=np.uint8),
-                                      (x, y), (x + w, y + h), 255, -1)
+          final_mask = cv2.drawContours(np.zeros(blur_img.shape,
+                                                 dtype=np.uint8),
+                                        contours,
+                                        contourIdx=0,
+                                        color=int8_max,
+                                        thickness=cv2.FILLED)
           final_mask &= blur_img
       else:
-          final_img = rgb_img
           final_mask = np.zeros(blur_img.shape)
+
+      return final_mask
 
 
   def main(argv=None):
@@ -771,28 +1240,63 @@ So, quick digression, we’ve gotta process the images to their masks.
       description = ('Process images to masks.')
       parser = argparse.ArgumentParser(description=description,
                                        fromfile_prefix_chars='@')
-      parser.add_argument('image', nargs='*', help='images to process')
+      parser.add_argument('outdir', type=writeable_dir,
+                          help='directory to place mask images')
+      parser.add_argument('hist', type=argparse.FileType(),
+                          help='CSV of backprojection hue histograms')
+      parser.add_argument('image', nargs='+', help='images to process')
 
       args = parser.parse_args(argv[1:])
 
-      image_lst = args.image
+      image_name_lst = args.image
+      outdir = args.outdir
+      master_hist_df = pd.read_csv(args.hist)
 
-      img_re = ('(?:[^/]*/)*'
-                '(?P<character>[^_]*)_'
-                '(?P<color>[^_]*)_'
-                '(?P<stage>[^_]*)_'
-                '(?P<orientation>[^_]*)_'
-                'bg_off_'
-                '(?P<number>[0-9]{3})'
-                '.jpg')
-      for image in image_lst:
-          match = re.search(img_re, image)
+      character_colors = CharacterColorHistogram(master_hist_df)
+
+      for image_name in image_name_lst:
+          match = re.search(img_re, image_name)
           if match:
+              character = match.group('character')
+              color = int(match.group('color'))
+
+              hsv_img = cv2.cvtColor(cv2.imread(image_name),
+                                     cv2.COLOR_BGR2HSV)
+              back_proj_hist = character_colors.histogram(character, color)
+              # couldn't tell you why, but for some reason I get better
+              # results including just the tippy top of the cutoff peaks
+              optimal_thresh = cutoff_thresh(back_proj_hist) - 1
+
+              mask_image = mask_from_image(hsv_img,
+                                           back_proj_hist,
+                                           optimal_thresh)
+              mask_image_name = ('{character}_'
+                                 '{color}_'
+                                 '{stage}_'
+                                 '{orientation}_'
+                                 'bg_{background}_'
+                                 '{number}_'
+                                 'mask.jpg').format(**match.groupdict())
+              cv2.imwrite(os.path.join(outdir, mask_image_name), mask_image)
 
 
+  if __name__ == '__main__':
+      sys.exit(main())
 #+END_SRC
 
 #+RESULTS:
+
+** DONE make masks
+CLOSED: [2018-03-28 Wed 15:00]
+- Note taken on [2018-03-28 Wed 15:00] \\
+  I’m happy with top 55%.  makefile away!
+- Note taken on [2018-03-17 Sat 19:13] \\
+  god dammit, my approach of finding large peaks is too brittle.  let’s try cutting off the top x% of the hist
+need a makefile target, and need to finish the process_masks script
+
+oh god, okay, now we need to actually figure out how to calculate the threshold from the histogram
+
+so that needs to happen in the masking function itself
 
 ** Back to Keras
 
