@@ -1,4 +1,5 @@
-IFS=_ read char color stage orientation ignore bg rest <<<"$1"
+filename=$(basename "$1")
+IFS=_ read char color stage orientation ignore bg rest <<<"$filename"
 
 setup_dir="$(dirname $0)/setup_files"
 echo "${setup_dir}/10_to_debug.txt"
