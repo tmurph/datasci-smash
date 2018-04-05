@@ -172,7 +172,7 @@ $(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
 	$(PYTHON) $< --header >$@
 
 $(HISTDIR)/%_001.jpg : $(NOBG_IMAGEDIR)/%_001.jpg
-	find $(<D) -iname $(*F)_\*.jpg -exec cp -t $(@D) '{}' +
+	find $(abspath $(<D)) -iname $(*F)_\*.jpg -exec ln -s -t $(@D) '{}' ';'
 
 .PRECIOUS : $(HISTDIR)/%_images
 
