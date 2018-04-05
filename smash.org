@@ -24,6 +24,16 @@ that probably needs a new variable for reference moves (and rename “moves list
 
 and maybe think harder about how to reuse the existing rules just with different targets.  I’m sure make can handle it, somehow.
 
+* DONE parallelize the record avi step
+CLOSED: [2018-03-31 Sat 22:08]
+- Note taken on [2018-03-31 Sat 22:06] \\
+  omg that was a lot easier than I expected.  also, the fucking dolphin recording is the brittlest shit known to man.  I have some stuff in my personal config that’s required, and the record_avi shell script hard-codes these three assumptions:
+  
+  1. the location of the dolphin executable
+  2. the location of my user directory
+  3. the stupid way dolphin spits out two framedump files (as of 5.0-361, sure, that’s the behavior … but 5.0 release didn’t do it that way, and who the fuck knows what it’s doing now)
+this is the only thing that stops me from running make with just a bajillion cores.  I’m sure there’s some sort of chroot trickery or something I can do
+
 * Setup
 
 #+BEGIN_SRC jupyter
