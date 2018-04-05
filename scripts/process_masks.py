@@ -79,14 +79,14 @@ def mask_from_image(hsv_img, back_proj_hist, thresh,
                     hsv_min=np.array([0, 50, 50]),
                     hsv_max=np.array([179, 255, 255]),
                     blur_size=11):
-    """Calculate a greyscale ROI mask from HSV_IMG.
+    """Calculate a binary ROI mask from HSV_IMG.
 
 Backproject the hues of HSV_IMG according to BACK_PROJ_HIST and cut off
 the backprojection at THRESH.  In case multiple regions survive the
 cutoff, select the region with the largest area.
 
     """
-    # backproject hues, but mask out pixels with little saturation/value
+    # backproject hues, but ignore pixels with little saturation/value
     hsv_mask = cv2.inRange(hsv_img, hsv_min, hsv_max)
     h_img = hsv_img[:, :, hue_chan]
     back_proj = back_proj_hist[h_img.ravel()].reshape(h_img.shape)
@@ -101,16 +101,14 @@ cutoff, select the region with the largest area.
                                       cv2.CHAIN_APPROX_SIMPLE)
     contours = sorted(contours, key=cv2.contourArea, reverse=True)
 
-    # calculate greyscale mask
+    # calculate mask
     if contours:
-        large_contour = contours[0]
         final_mask = cv2.drawContours(np.zeros(blur_img.shape,
                                                dtype=np.uint8),
                                       contours,
                                       contourIdx=0,
                                       color=int8_max,
                                       thickness=cv2.FILLED)
-        final_mask &= blur_img
     else:
         final_mask = np.zeros(blur_img.shape)
 
