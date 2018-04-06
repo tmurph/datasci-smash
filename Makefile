@@ -70,7 +70,6 @@ usage : # this happens when make is called with no arguments
 	@echo "    make hist"
 	@echo "    make images"
 	@echo "    make masks"
-	@echo "    make all (alias for the previous three)"
 	@echo ""
 	@echo "Set the optional arguments CHARACTERS, COLORS, STAGES,"
 	@echo "  and ORIENTATIONS to limit the scope of make."
@@ -94,8 +93,6 @@ usage : # this happens when make is called with no arguments
 	@echo "  COLORS="$(COLORS)
 	@echo "  STAGES="$(STAGES)
 	@echo "  ORIENTATIONS="$(ORIENTATIONS)
-
-all : hist images masks
 
 $(MAKEABLE_DIRS) :
 	mkdir -p $@
