@@ -70,6 +70,7 @@ usage : # this happens when make is called with no arguments
 	@echo "    make hist"
 	@echo "    make images"
 	@echo "    make masks"
+	@echo "    make keras"
 	@echo ""
 	@echo "Set the optional arguments CHARACTERS, COLORS, STAGES,"
 	@echo "  and ORIENTATIONS to limit the scope of make."
@@ -250,3 +251,5 @@ $(KERASDIR)/%_done : $(KERASDIR)/shuffled_image_mask_list_%
 
 $(KERASDIR)/folders_done : $(KERASDIR)/train_done $(KERASDIR)/test_done $(KERASDIR)/valid_done
 	touch $@
+
+keras : $(KERASDIR)/folders_done
