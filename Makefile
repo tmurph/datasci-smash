@@ -39,17 +39,17 @@ stem_roots := $(foreach char,$(CHARACTERS),\
 
 bg_stems := $(addsuffix _bg_on,$(stem_roots))
 bg_images := $(addprefix $(IMAGEDIR)/,\
-		$(addsuffix _images,\
+		$(addsuffix _image_list,\
 		  $(bg_stems)))
 
 nobg_stems := $(addsuffix _bg_off,$(stem_roots))
 nobg_images := $(addprefix $(NOBG_IMAGEDIR)/,\
-		  $(addsuffix _images,\
+		  $(addsuffix _image_list,\
 		    $(nobg_stems)))
 
 hist_stems := $(nobg_stems)
 hist_images := $(addprefix $(HISTDIR)/,\
-		 $(addsuffix _images,\
+		 $(addsuffix _image_list,\
 		   $(hist_stems)))
 hist_csvs := $(addprefix $(HISTDIR)/,\
 		  $(addsuffix _hist.csv,\
@@ -57,7 +57,7 @@ hist_csvs := $(addprefix $(HISTDIR)/,\
 
 mask_stems := $(nobg_stems)
 mask_masks := $(addprefix $(MASKDIR)/,\
-	   	  $(addsuffix _masks,\
+	   	  $(addsuffix _mask_list,\
 	     	    $(mask_stems)))
 
 usage : # this happens when make is called with no arguments
@@ -142,6 +142,8 @@ $(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02)
 
 # image stuff
 
+.PRECIOUS : %_001.jpg
+
 %_001.jpg : %_prefix_sec %.avi
 	find $(@D) -iname $(*F)_\*.jpg -exec rm '{}' +
 	$(FFMPEG) -nostats -hide_banner -loglevel panic \
@@ -150,18 +152,16 @@ $(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02)
 	  -vf framestep=step=10 \
 	  $(@D)/$(*F)_%03d.jpg
 
-.PRECIOUS : %_images
+$(bg_images) $(nobg_images) : %_image_list : %_001.jpg
+	find $(abspath $(@D)) -iname $(*F)_\*.jpg >$@
 
-$(bg_images) $(nobg_images) : %_images : %_001.jpg
-	find $(@D) -iname $(*F)_\*.jpg >$@
-
-$(IMAGEDIR)/images : $(bg_images) | $(IMAGEDIR)
+$(IMAGEDIR)/image_list : $(bg_images) | $(IMAGEDIR)
 	cat $+ >$@
 
-$(NOBG_IMAGEDIR)/images : $(nobg_images) | $(NOBG_IMAGEDIR)
+$(NOBG_IMAGEDIR)/image_list : $(nobg_images) | $(NOBG_IMAGEDIR)
 	cat $+ >$@
 
-images : $(IMAGEDIR)/images
+images : $(IMAGEDIR)/image_list
 
 # histogram stuff
 
@@ -171,16 +171,14 @@ $(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
 $(HISTDIR)/%_001.jpg : $(NOBG_IMAGEDIR)/%_001.jpg
 	find $(abspath $(<D)) -iname $(*F)_\*.jpg -exec ln -s -t $(@D) '{}' ';'
 
-.PRECIOUS : $(HISTDIR)/%_images
-
-$(hist_images) : %_images : %_001.jpg
-	find $(@D) -iname $(*F)_\*.jpg >$@
+$(hist_images) : %_image_list : %_001.jpg
+	find $(abspath $(@D)) -iname $(*F)_\*.jpg >$@
 
 .PRECIOUS : $(HISTDIR)/%_hist.csv
 
 %_hist.csv : $(HISTDIR)/hist_header.csv \
 	     $(SCRIPTDIR)/process_images.py \
-	     %_images \
+	     %_image_list \
 	     | $(HISTDIR)
 	cat $< >$@
 	$(PYTHON) $(word 2,$^) @$(word 3,$^) >>$@
@@ -195,19 +193,19 @@ hist : $(HISTDIR)/hist.csv
 
 # mask stuff
 
+.PRECIOUS : $(MASKDIR)/%_001_mask.jpg
+
 $(MASKDIR)/%_001_mask.jpg : $(SCRIPTDIR)/process_masks.py \
 			    $(HISTDIR)/%_hist.csv \
-			    $(NOBG_IMAGEDIR)/%_images \
+			    $(NOBG_IMAGEDIR)/%_image_list \
 			    | $(MASKDIR)
 	find $(@D) -iname $(*F)_\*.jpg -exec rm '{}' +
 	$(PYTHON) $(word 1,$^) $(@D) $(word 2,$^) @$(word 3,$^)
 
-.PRECIOUS : %_masks
+%_mask_list : %_001_mask.jpg
+	find $(abspath $(@D)) -iname $(*F)_\*.jpg >$@
 
-%_masks : %_001_mask.jpg
-	find $(@D) -iname $(*F)_\*.jpg >$@
-
-$(MASKDIR)/masks : $(mask_masks) | $(MASKDIR)
+$(MASKDIR)/mask_list : $(mask_masks) | $(MASKDIR)
 	cat $+ >$@
 
-masks : $(MASKDIR)/masks
+masks : $(MASKDIR)/mask_list
