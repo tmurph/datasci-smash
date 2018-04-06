@@ -231,15 +231,11 @@ $(KERASDIR)/shuffled_image_mask_list : $(SCRIPTDIR)/random_shuffle.sh \
 				       | $(KERASDIR)
 	$(BASH) $(word 1,$^) $(word 2,$^) | cut -d' ' -f 2- >$@
 
-# this is super dumb, but fix it later
-$(KERASDIR)/shuffled_image_mask_list_train : $(SCRIPTDIR)/split_into_percentages.sh \
-					     $(KERASDIR)/shuffled_image_mask_list
-	./$< $(word 2,$^) test 10 valid 20 train
-$(KERASDIR)/shuffled_image_mask_list_test : $(SCRIPTDIR)/split_into_percentages.sh \
-					    $(KERASDIR)/shuffled_image_mask_list
-	./$< $(word 2,$^) test 10 valid 20 train
-$(KERASDIR)/shuffled_image_mask_list_valid : $(SCRIPTDIR)/split_into_percentages.sh \
-					     $(KERASDIR)/shuffled_image_mask_list
+keras_folder_lists := $(addprefix \
+			$(KERASDIR)/shuffled_image_mask_list_,\
+			  train test valid)
+$(keras_folder_lists) : $(SCRIPTDIR)/split_into_percentages.sh \
+			$(KERASDIR)/shuffled_image_mask_list
 	./$< $(word 2,$^) test 10 valid 20 train
 
 $(KERASDIR)/%_done : $(KERASDIR)/shuffled_image_mask_list_%
@@ -249,7 +245,9 @@ $(KERASDIR)/%_done : $(KERASDIR)/shuffled_image_mask_list_%
 	cut -d' ' -f 2 $< | xargs ln -s -t $(@D)/$*/masks/dummy
 	touch $@
 
-$(KERASDIR)/folders_done : $(KERASDIR)/train_done $(KERASDIR)/test_done $(KERASDIR)/valid_done
+$(KERASDIR)/folders_done : $(KERASDIR)/train_done \
+			   $(KERASDIR)/test_done \
+			   $(KERASDIR)/valid_done
 	touch $@
 
 keras : $(KERASDIR)/folders_done
