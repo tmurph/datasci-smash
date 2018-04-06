@@ -1,6 +1,3 @@
-# I've been using the following to get specialty histograms
-# make hist MOVES_LIST=reference_moves_list
-# make images masks
 PYTHON := ../bin/python3
 TEXT2DTM := text2dtm
 FFMPEG := ffmpeg
