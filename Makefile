@@ -1,3 +1,4 @@
+BASH := /bin/bash
 PYTHON := ../bin/python3
 TEXT2DTM := text2dtm
 FFMPEG := ffmpeg
@@ -12,6 +13,10 @@ IMAGEDIR := $(DATADIR)/images
 NOBG_IMAGEDIR := $(DATADIR)/images_nobg
 HISTDIR := $(DATADIR)/hist
 MASKDIR := $(DATADIR)/masks
+KERASDIR := $(DATADIR)/keras
+
+MAKEABLE_DIRS := $(IMAGEDIR) $(NOBG_IMAGEDIR) $(HISTDIR) $(MASKDIR) \
+		 $(KERASDIR)
 
 CHARACTERS := falco falcon fox jigglypuff marth peach samus sheik
 COLORS := 0 1 2 3 4
@@ -92,7 +97,7 @@ usage : # this happens when make is called with no arguments
 
 all : hist images masks
 
-$(IMAGEDIR) $(NOBG_IMAGEDIR) $(HISTDIR) $(MASKDIR) :
+$(MAKEABLE_DIRS) :
 	mkdir -p $@
 
 # avi stuff
@@ -209,3 +214,42 @@ $(MASKDIR)/mask_list : $(mask_masks) | $(MASKDIR)
 	cat $+ >$@
 
 masks : $(MASKDIR)/mask_list
+
+# keras folder stuff
+
+$(KERASDIR)/labelled_image_list : $(IMAGEDIR)/image_list | $(KERASDIR)
+	sed -e 's|.*/\(.*\).jpg|\1 &|' -e 's/_bg_on//' <$< >$@
+
+$(KERASDIR)/labelled_mask_list : $(MASKDIR)/mask_list | $(KERASDIR)
+	sed -e 's|.*/\(.*\)_mask.jpg|\1 &|' -e 's/_bg_off//' <$< >$@
+
+$(KERASDIR)/labelled_image_mask_list : $(KERASDIR)/labelled_image_list \
+			      	       $(KERASDIR)/labelled_mask_list \
+			      	       | $(KERASDIR)
+	join $+ >$@
+
+$(KERASDIR)/shuffled_image_mask_list : $(SCRIPTDIR)/random_shuffle.sh \
+				       $(KERASDIR)/labelled_image_mask_list \
+				       | $(KERASDIR)
+	$(BASH) $(word 1,$^) $(word 2,$^) | cut -d' ' -f 2- >$@
+
+# this is super dumb, but fix it later
+$(KERASDIR)/shuffled_image_mask_list_train : $(SCRIPTDIR)/split_into_percentages.sh \
+					     $(KERASDIR)/shuffled_image_mask_list
+	./$< $(word 2,$^) test 10 valid 20 train
+$(KERASDIR)/shuffled_image_mask_list_test : $(SCRIPTDIR)/split_into_percentages.sh \
+					    $(KERASDIR)/shuffled_image_mask_list
+	./$< $(word 2,$^) test 10 valid 20 train
+$(KERASDIR)/shuffled_image_mask_list_valid : $(SCRIPTDIR)/split_into_percentages.sh \
+					     $(KERASDIR)/shuffled_image_mask_list
+	./$< $(word 2,$^) test 10 valid 20 train
+
+$(KERASDIR)/%_done : $(KERASDIR)/shuffled_image_mask_list_%
+	rm -rf $(@D)/$*
+	mkdir -p $(@D)/$*/images/dummy $(@D)/$*/masks/dummy
+	cut -d' ' -f 1 $< | xargs ln -s -t $(@D)/$*/images/dummy
+	cut -d' ' -f 2 $< | xargs ln -s -t $(@D)/$*/masks/dummy
+	touch $@
+
+$(KERASDIR)/folders_done : $(KERASDIR)/train_done $(KERASDIR)/test_done $(KERASDIR)/valid_done
+	touch $@
