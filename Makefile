@@ -103,10 +103,10 @@ $(MAKEABLE_DIRS) :
 $(SCRIPTDIR)/setup_files_logic.sh : $(dtm_setup_files) | $(SETUPFILESDIR)
 
 %_setup_files_list : $(SCRIPTDIR)/setup_files_logic.sh
-	$< $@ >$@
+	$(BASH) $< $@ >$@
 
 %_setup_moves_list : $(SCRIPTDIR)/setup_moves_logic.sh
-	$< $@ >$@
+	$(BASH) $< $@ >$@
 
 %_files_prefix_count : %_setup_files_list
 	cat $< | xargs grep -v '^#' | wc -l >$@
@@ -124,11 +124,11 @@ $(SCRIPTDIR)/compile_moves.py : $(COMPILEMOVESDIR)/character_frames.csv \
 
 %_prefix_sec : $(SCRIPTDIR)/time_arithmetic.sh %_files_prefix_count \
 	       %_moves_prefix_count
-	$< $(wordlist 2,$(words $^),$^) >$@
+	$(BASH) $< $(wordlist 2,$(words $^),$^) >$@
 
 %_recording_sec : $(SCRIPTDIR)/time_arithmetic.sh %_files_prefix_count \
 		  %_moves_prefix_count %_total_moves_count
-	DENOM=120 $< $(wordlist 2,$(words $^),$^) >$@
+	DENOM=120 $(BASH) $< $(wordlist 2,$(words $^),$^) >$@
 
 %.dtm : %_setup_files_list $(SCRIPTDIR)/compile_moves.py \
 	%_setup_moves_list $(MOVES_LIST) $(MOVES_LIST) \
@@ -141,7 +141,7 @@ $(SCRIPTDIR)/compile_moves.py : $(COMPILEMOVESDIR)/character_frames.csv \
 $(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02).iso
 
 %.avi : $(SCRIPTDIR)/record_avi.sh %.dtm %_recording_sec
-	$< $@ $(word 2,$^) $$(cat $(word 3,$^))
+	$(BASH) $< $@ $(word 2,$^) $$(cat $(word 3,$^))
 
 # image stuff
 
@@ -229,14 +229,14 @@ $(KERASDIR)/labelled_image_mask_list : $(KERASDIR)/labelled_image_list \
 $(KERASDIR)/shuffled_image_mask_list : $(SCRIPTDIR)/random_shuffle.sh \
 				       $(KERASDIR)/labelled_image_mask_list \
 				       | $(KERASDIR)
-	$(BASH) $(word 1,$^) $(word 2,$^) | cut -d' ' -f 2- >$@
+	$(BASH) $< $(word 2,$^) | cut -d' ' -f 2- >$@
 
 keras_folder_lists := $(addprefix \
 			$(KERASDIR)/shuffled_image_mask_list_,\
 			  train test valid)
 $(keras_folder_lists) : $(SCRIPTDIR)/split_into_percentages.sh \
 			$(KERASDIR)/shuffled_image_mask_list
-	./$< $(word 2,$^) test 10 valid 20 train
+	$(BASH) $< $(word 2,$^) test 10 valid 20 train
 
 $(KERASDIR)/%_done : $(KERASDIR)/shuffled_image_mask_list_%
 	rm -rf $(@D)/$*
