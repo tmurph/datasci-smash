@@ -6,11 +6,12 @@ data_dir="$(dirname $0)/record_avi"
 melee_iso="${data_dir}/Super Smash Bros. Melee (v1.02).iso"
 
 dolphin=/Applications/Dolphin.app/Contents/MacOS/Dolphin
+user_dir=~/Library/Application\ Support/Dolphin
 
-user_dir=/Users/trevor/Library/Application\ Support/Dolphin
+user_dir_base=$(basename "$user_dir")
 tmp_dir=$(mktemp -d 2>/dev/null || mktemp -d -t 'dolphin')
 cp -r -t "$tmp_dir" "$user_dir"
-tmp_user_dir="${tmp_dir}/Dolphin"
+tmp_user_dir="${tmp_dir}/${user_dir_base}"
 
 frame_dir="${tmp_user_dir}/Dump/Frames"
 dumb_video="${frame_dir}/framedump0.avi"
