@@ -171,8 +171,8 @@ images : $(IMAGEDIR)/image_list
 $(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
 	$(PYTHON) $< --header >$@
 
-$(HISTDIR)/%_001.jpg : $(NOBG_IMAGEDIR)/%_001.jpg
-	find $(abspath $(<D)) -iname $(*F)_\*.jpg -exec ln -s -t $(@D) '{}' ';'
+$(HISTDIR)/%_001.jpg : $(NOBG_IMAGEDIR)/%_001.jpg | $(NOBG_IMAGEDIR)
+	find $(abspath $(<D)) -iname $(*F)_\*.jpg -exec ln -s -t $(@D) '{}' +
 
 $(hist_images) : %_image_list : %_001.jpg
 	find $(abspath $(@D)) -iname $(*F)_\*.jpg >$@
