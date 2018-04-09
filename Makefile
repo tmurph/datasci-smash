@@ -1,5 +1,5 @@
-BASH := /bin/bash
-PYTHON := ../bin/python3
+BASH := bash
+PYTHON := python3
 TEXT2DTM := text2dtm
 FFMPEG := ffmpeg
 
