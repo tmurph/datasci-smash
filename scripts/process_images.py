@@ -23,7 +23,7 @@ def main(argv=None):
 
     if args.header:
         titles = ['character', 'color', 'stage', 'orientation', 'number']
-        titles += [f'H{i:03d}' for i in range(180)]
+        titles += ['H{:03d}'.format(i) for i in range(180)]
         print(*titles, sep=',')
 
     img_re = ('(?:[^/]*/)*'
