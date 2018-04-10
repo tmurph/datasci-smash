@@ -139,6 +139,8 @@ $(SCRIPTDIR)/compile_moves.py : $(COMPILEMOVESDIR)/character_frames.csv \
 
 # sure would be nice to list the dolphin dependencies somehow
 $(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02).iso
+	@echo "ERROR: you must legally obtain a copy of "$(<F)
+	@echo "       and place it in "$(<D)" to proceed"
 
 %.avi : $(SCRIPTDIR)/record_avi.sh %.dtm %_recording_sec
 	$(BASH) $< $@ $(word 2,$^) $$(cat $(word 3,$^))
