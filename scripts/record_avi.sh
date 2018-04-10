@@ -2,11 +2,11 @@ avi_filename="$1"
 dtm_filename="$2"
 total_sec=$(printf "%.0f" "$3")
 
-data_dir="$(dirname $0)/record_avi"
-melee_iso="${data_dir}/Super Smash Bros. Melee (v1.02).iso"
+avi_dir="$(dirname $0)/record_avi"
+melee_iso="${avi_dir}/Super Smash Bros. Melee (v1.02).iso"
 
 dolphin=/Applications/Dolphin.app/Contents/MacOS/Dolphin
-user_dir=~/Library/Application\ Support/Dolphin
+user_dir="${avi_dir}/../dolphin-user"
 
 user_dir_base=$(basename "$user_dir")
 tmp_dir=$(mktemp -d 2>/dev/null || mktemp -d -t 'dolphin')
