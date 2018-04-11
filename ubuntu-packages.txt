@@ -5,3 +5,4 @@ dolphin-emu
 python3-pip
 ffmpeg
 bash
+bc
