@@ -1,2 +1,0 @@
-42:02:218 /build/dolphin-emu-aHeZzl/dolphin-emu-4.0.2+dfsg2/Source/Core/DiscIO/Src/NANDContentLoader.cpp:218 W[DIO]: CreateFromDirectory: error opening ./dolphin-user/Wii/title/00000001/00000002/content/title.tmd
-42:02:236 /build/dolphin-emu-aHeZzl/dolphin-emu-4.0.2+dfsg2/Source/Core/DiscIO/Src/NANDContentLoader.cpp:218 W[DIO]: CreateFromDirectory: error opening ./dolphin-user/Wii/title/00000001/00000002/content/title.tmd
