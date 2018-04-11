@@ -19,7 +19,7 @@ rm -f "$dumb_video" "$dolphin_video"
 # On my Mac OSX, Dolphin --batch still requires user input to shut down
 # when the movie finishes :(.  Let's try to hack around it with dumb
 # sleeping mechanisms.
-"$dolphin" -U "$tmp_user_dir" -e "$melee_iso" -b -m "$dtm_filename" &
+"$dolphin" -u "$tmp_user_dir" -e "$melee_iso" -b -m "$dtm_filename" &
 dolphin_pid=$!
 read -p "Sleep for: $total_sec" -t $total_sec
 kill -TERM $dolphin_pid
