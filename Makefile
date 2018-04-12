@@ -132,13 +132,13 @@ $(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_compile.sql \
 	  cat $< ; } | $(SQLITE) >$@
 
 %_moves_prefix_count : $(SCRIPTDIR)/compile_moves.py \
-		       $(COMPILEMOVESDIR)/$$(call char_name_from_stem,%)_frames.csv \
+		       $(COMPILEMOVESDIR)/$$(call char_name_from_stem,$$*)_frames.csv \
 		       $(COMPILEMOVESDIR)/dtm_inputs.csv \
 		       %_setup_moves_list
 	$(PYTHON) $< $(wordlist 2,3,$^) @$(word 4,$^) | wc -l >$@
 
 %_total_moves_count : $(SCRIPTDIR)/compile_moves.py \
-		      $(COMPILEMOVESDIR)/$$(call char_name_from_stem,%)_frames.csv \
+		      $(COMPILEMOVESDIR)/$$(call char_name_from_stem,$$*)_frames.csv \
 		      $(COMPILEMOVESDIR)/dtm_inputs.csv \
 		      %_setup_moves_list \
 		      $(MOVES_LIST) $(MOVES_LIST)
