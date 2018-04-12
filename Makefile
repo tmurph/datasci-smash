@@ -63,6 +63,8 @@ hist_csvs := $(addprefix $(HISTDIR)/,\
 		  $(addsuffix _hist.csv,\
 		    $(hist_stems)))
 
+char_name_from_stem = $(firstword $(subst _, ,$(notdir $(1))))
+
 usage : # this happens when make is called with no arguments
 	@echo "Usage:"
 	@echo "    make hist"
@@ -104,19 +106,28 @@ $(SCRIPTDIR)/setup_files_logic.sh : $(dtm_setup_files) | $(SETUPFILESDIR)
 %_files_prefix_count : %_setup_files_list
 	cat $< | xargs grep -v '^#' | wc -l >$@
 
-$(COMPILEMOVESDIR)/character_frames.csv : $(COMPILEMOVESDIR)/character_frames_specific.csv
-$(COMPILEMOVESDIR)/character_frames.csv : $(COMPILEMOVESDIR)/character_frames_universal.csv
-$(COMPILEMOVESDIR)/character_frames.csv : $(COMPILEMOVESDIR)/character_frames_compile.sql
-	$(SQLITE) <$<
+$(COMPILEMOVESDIR)/%_frames_specific.csv :
+	$(error ERROR: you must place $(call char_name_from_stem,$*) \
+		specific frame data in $(@F) and place it in $(@D) to \
+		proceed)
 
-$(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_no_orientation.csv
-$(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_yes_orientation.csv
-$(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_compile.sql
-	$(SQLITE) <$<
+$(COMPILEMOVESDIR)/%_frames.csv : $(COMPILEMOVESDIR)/character_frames_compile.sql \
+				  $(COMPILEMOVESDIR)/character_frames_universal.csv \
+				  $(COMPILEMOVESDIR)/%_frames_specific.csv
+	{ echo ".mode csv" ; \
+	  echo ".headers on" ; \
+	  echo ".import $(word 2,$^) universal_frames" ; \
+	  echo ".import $(word 3,$^) specific_frames" ; \
+	  cat $< ; } | $(SQLITE) >$@
 
-$(SCRIPTDIR)/compile_moves.py : $(COMPILEMOVESDIR)/character_frames.csv \
-				$(COMPILEMOVESDIR)/dtm_inputs.csv
-	touch $@
+$(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_compile.sql \
+				    $(COMPILEMOVESDIR)/dtm_inputs_yes_orientation.csv \
+				    $(COMPILEMOVESDIR)/dtm_inputs_no_orientation.csv
+	{ echo ".mode csv" ; \
+	  echo ".headers on" ; \
+	  echo ".import $(word 2,$^) yes_orientation" ; \
+	  echo ".import $(word 3,$^) no_orientation" ; \
+	  cat $< ; } | $(SQLITE) >$@
 
 %_moves_prefix_count : $(SCRIPTDIR)/compile_moves.py %_setup_moves_list
 	$(PYTHON) $(word 1,$^) @$(word 2,$^) | wc -l >$@
