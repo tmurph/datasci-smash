@@ -156,8 +156,8 @@ $(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02)
 	@echo "ERROR: you must legally obtain a copy of "$(<F)
 	@echo "       and place it in "$(<D)" to proceed"
 
-%.avi : $(SCRIPTDIR)/record_avi.sh $(DOLPHIN) %.dtm %_recording_sec
-	$(BASH) $< $@ $(word 2,$^) $(word 3,$^) $$(cat $(word 4,$^))
+%.avi : $(SCRIPTDIR)/record_avi.sh %.dtm %_recording_sec
+	$(BASH) $< $@ $(DOLPHIN) $(word 2,$^) $$(cat $(word 3,$^))
 
 # image stuff
 
