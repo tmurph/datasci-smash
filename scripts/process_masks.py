@@ -26,9 +26,9 @@ img_re = re.compile('(?:[^/]*/)*'
 
 def writeable_dir(prospective_dir):
     if not os.path.isdir(prospective_dir):
-        raise Exception(f"{prospective_dir} is not a valid path")
+        raise Exception("{} is not a valid path".format(prospective_dir))
     if not os.access(prospective_dir, os.W_OK):
-        raise Exception(f"{prospective_dir} is not a writeable dir")
+        raise Exception("{} is not a writeable dir".format(prospective_dir))
     return prospective_dir
 
 
