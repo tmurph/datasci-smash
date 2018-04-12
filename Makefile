@@ -1,3 +1,5 @@
+.SECONDEXPANSION :
+
 BASH := bash
 PYTHON := python3
 TEXT2DTM := text2dtm
@@ -129,13 +131,19 @@ $(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_compile.sql \
 	  echo ".import $(word 3,$^) no_orientation" ; \
 	  cat $< ; } | $(SQLITE) >$@
 
-%_moves_prefix_count : $(SCRIPTDIR)/compile_moves.py %_setup_moves_list
-	$(PYTHON) $(word 1,$^) @$(word 2,$^) | wc -l >$@
+%_moves_prefix_count : $(SCRIPTDIR)/compile_moves.py \
+		       $(COMPILEMOVESDIR)/$$(call char_name_from_stem,%)_frames.csv \
+		       $(COMPILEMOVESDIR)/dtm_inputs.csv \
+		       %_setup_moves_list
+	$(PYTHON) $< $(wordlist 2,3,$^) @$(word 4,$^) | wc -l >$@
 
-%_total_moves_count : $(SCRIPTDIR)/compile_moves.py %_setup_moves_list \
+%_total_moves_count : $(SCRIPTDIR)/compile_moves.py \
+		      $(COMPILEMOVESDIR)/$$(call char_name_from_stem,%)_frames.csv \
+		      $(COMPILEMOVESDIR)/dtm_inputs.csv \
+		      %_setup_moves_list \
 		      $(MOVES_LIST) $(MOVES_LIST)
-	$(PYTHON) $(word 1,$+) \
-	  $(patsubst %,@%,$(wordlist 2,$(words $+),$+)) | wc -l >$@
+	$(PYTHON) $< $(wordlist 2,3,$+) \
+		     $(patsubst %,@%,$(wordlist 4,6,$+)) | wc -l >$@
 
 %_prefix_sec : $(SCRIPTDIR)/time_arithmetic.sh %_files_prefix_count \
 	       %_moves_prefix_count
