@@ -8,3 +8,4 @@ bc
 mesa-utils
 xserver-xorg
 x11vnc
+sqlite
