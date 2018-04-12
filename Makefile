@@ -12,13 +12,11 @@ RECORDAVIDIR := $(SCRIPTDIR)/record_avi
 
 DATADIR := data
 IMAGEDIR := $(DATADIR)/images
-NOBG_IMAGEDIR := $(DATADIR)/images_nobg
 HISTDIR := $(DATADIR)/hist
 MASKDIR := $(DATADIR)/masks
 KERASDIR := $(DATADIR)/keras
 
-MAKEABLE_DIRS := $(IMAGEDIR) $(NOBG_IMAGEDIR) $(HISTDIR) $(MASKDIR) \
-		 $(KERASDIR)
+MAKEABLE_DIRS := $(IMAGEDIR) $(HISTDIR) $(MASKDIR) $(KERASDIR)
 
 CHARACTERS := falco falcon fox jigglypuff marth peach samus sheik
 COLORS := 0 1 2 3 4
@@ -49,23 +47,21 @@ bg_images := $(addprefix $(IMAGEDIR)/,\
 		$(addsuffix _image_list,\
 		  $(bg_stems)))
 
-nobg_stems := $(addsuffix _bg_off,$(stem_roots))
-nobg_images := $(addprefix $(NOBG_IMAGEDIR)/,\
-		  $(addsuffix _image_list,\
-		    $(nobg_stems)))
+mask_stems := $(addsuffix _bg_off,$(stem_roots))
+mask_images := $(addprefix $(MASKDIR)/,\
+		 $(addsuffix _image_list,\
+		   $(mask_stems)))
+mask_masks := $(addprefix $(MASKDIR)/,\
+	   	  $(addsuffix _mask_list,\
+	     	    $(mask_stems)))
 
-hist_stems := $(nobg_stems)
+hist_stems := $(mask_stems)
 hist_images := $(addprefix $(HISTDIR)/,\
 		 $(addsuffix _image_list,\
 		   $(hist_stems)))
 hist_csvs := $(addprefix $(HISTDIR)/,\
 		  $(addsuffix _hist.csv,\
 		    $(hist_stems)))
-
-mask_stems := $(nobg_stems)
-mask_masks := $(addprefix $(MASKDIR)/,\
-	   	  $(addsuffix _mask_list,\
-	     	    $(mask_stems)))
 
 usage : # this happens when make is called with no arguments
 	@echo "Usage:"
@@ -80,16 +76,10 @@ usage : # this happens when make is called with no arguments
 	@echo "Set the optional arguments HISTDIR, IMAGEDIR, and MASKDIR"
 	@echo "  to change the destination of results."
 	@echo ""
-	@echo "Set the optional argument NOBG_IMAGEDIR to change the"
-	@echo "  location of intermediate, no-background images. This"
-	@echo "  option affects where \`make hist' and \`make masks'"
-	@echo "  look for no-background images to process."
-	@echo ""
 	@echo "Current directories are:"
 	@echo "  HISTDIR="$(HISTDIR)
 	@echo "  IMAGEDIR="$(IMAGEDIR)
 	@echo "  MASKDIR="$(MASKDIR)
-	@echo "  NOBG_IMAGEDIR="$(NOBG_IMAGEDIR)
 	@echo ""
 	@echo "Current scope is:"
 	@echo "  CHARACTERS="$(CHARACTERS)
@@ -173,7 +163,7 @@ $(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02)
 	  -vf framestep=step=10 \
 	  $(@D)/$(*F)_%03d.jpg
 
-$(bg_images) $(nobg_images) $(hist_images) : %_image_list : %_001.jpg
+$(bg_images) $(mask_images) $(hist_images) : %_image_list : %_001.jpg
 	find $(abspath $(@D)) -iname $(*F)_\*.jpg >$@
 
 $(IMAGEDIR)/image_list : $(bg_images) | $(IMAGEDIR)
@@ -207,13 +197,13 @@ hist : $(HISTDIR)/hist.csv
 
 $(MASKDIR)/%_001_mask.jpg : $(SCRIPTDIR)/process_masks.py \
 			    $(HISTDIR)/%_hist.csv \
-			    $(NOBG_IMAGEDIR)/%_image_list \
+			    $(MASKDIR)/%_image_list \
 			    | $(MASKDIR)
-	find $(@D) -iname $(*F)_\*.jpg -exec rm '{}' +
+	find $(@D) -iname $(*F)_\*_mask.jpg -exec rm '{}' +
 	$(PYTHON) $(word 1,$^) $(@D) $(word 2,$^) @$(word 3,$^)
 
 %_mask_list : %_001_mask.jpg
-	find $(abspath $(@D)) -iname $(*F)_\*.jpg >$@
+	find $(abspath $(@D)) -iname $(*F)_\*_mask.jpg >$@
 
 $(MASKDIR)/mask_list : $(mask_masks) | $(MASKDIR)
 	cat $+ >$@
