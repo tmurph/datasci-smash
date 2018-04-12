@@ -3,6 +3,7 @@ PYTHON := python3
 TEXT2DTM := text2dtm
 FFMPEG := ffmpeg
 DOLPHIN := /usr/games/dolphin-emu
+SQLITE := sqlite3
 
 SCRIPTDIR := scripts
 SETUPFILESDIR := $(SCRIPTDIR)/setup_files
@@ -112,8 +113,19 @@ $(SCRIPTDIR)/setup_files_logic.sh : $(dtm_setup_files) | $(SETUPFILESDIR)
 %_files_prefix_count : %_setup_files_list
 	cat $< | xargs grep -v '^#' | wc -l >$@
 
+$(COMPILEMOVESDIR)/character_frames.csv : $(COMPILEMOVESDIR)/character_frames_specific.csv
+$(COMPILEMOVESDIR)/character_frames.csv : $(COMPILEMOVESDIR)/character_frames_universal.csv
+$(COMPILEMOVESDIR)/character_frames.csv : $(COMPILEMOVESDIR)/character_frames_compile.sql
+	$(SQLITE) <$<
+
+$(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_no_orientation.csv
+$(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_yes_orientation.csv
+$(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_compile.sql
+	$(SQLITE) <$<
+
 $(SCRIPTDIR)/compile_moves.py : $(COMPILEMOVESDIR)/character_frames.csv \
 				$(COMPILEMOVESDIR)/dtm_inputs.csv
+	touch $@
 
 %_moves_prefix_count : $(SCRIPTDIR)/compile_moves.py %_setup_moves_list
 	$(PYTHON) $(word 1,$^) @$(word 2,$^) | wc -l >$@
