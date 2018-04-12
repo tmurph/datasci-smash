@@ -2,6 +2,7 @@ BASH := bash
 PYTHON := python3
 TEXT2DTM := text2dtm
 FFMPEG := ffmpeg
+DOLPHIN := /usr/games/dolphin-emu
 
 SCRIPTDIR := scripts
 SETUPFILESDIR := $(SCRIPTDIR)/setup_files
@@ -142,8 +143,8 @@ $(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02)
 	@echo "ERROR: you must legally obtain a copy of "$(<F)
 	@echo "       and place it in "$(<D)" to proceed"
 
-%.avi : $(SCRIPTDIR)/record_avi.sh %.dtm %_recording_sec
-	$(BASH) $< $@ $(word 2,$^) $$(cat $(word 3,$^))
+%.avi : $(SCRIPTDIR)/record_avi.sh $(DOLPHIN) %.dtm %_recording_sec
+	$(BASH) $< $@ $(word 2,$^) $(word 3,$^) $$(cat $(word 4,$^))
 
 # image stuff
 
