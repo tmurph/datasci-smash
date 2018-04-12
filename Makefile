@@ -156,7 +156,7 @@ $(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02)
 .PRECIOUS : %_001.jpg
 
 %_001.jpg : %_prefix_sec %.avi
-	find $(@D) -iname $(*F)_\*.jpg -exec rm '{}' +
+	find $(@D) -iname $(*F)_[0-9][0-9][0-9].jpg -exec rm '{}' +
 	$(FFMPEG) -nostats -hide_banner -loglevel panic \
 	  -ss $$(cat $(word 1,$^)) \
 	  -i $(word 2,$^) \
@@ -164,7 +164,7 @@ $(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02)
 	  $(@D)/$(*F)_%03d.jpg
 
 $(bg_images) $(mask_images) $(hist_images) : %_image_list : %_001.jpg
-	find $(abspath $(@D)) -iname $(*F)_\*.jpg >$@
+	find $(abspath $(@D)) -iname $(*F)_[0-9][0-9][0-9].jpg >$@
 
 $(IMAGEDIR)/image_list : $(bg_images) | $(IMAGEDIR)
 	cat $+ >$@
@@ -199,11 +199,11 @@ $(MASKDIR)/%_001_mask.jpg : $(SCRIPTDIR)/process_masks.py \
 			    $(HISTDIR)/%_hist.csv \
 			    $(MASKDIR)/%_image_list \
 			    | $(MASKDIR)
-	find $(@D) -iname $(*F)_\*_mask.jpg -exec rm '{}' +
+	find $(@D) -iname $(*F)_[0-9][0-9][0-9]_mask.jpg -exec rm '{}' +
 	$(PYTHON) $(word 1,$^) $(@D) $(word 2,$^) @$(word 3,$^)
 
 %_mask_list : %_001_mask.jpg
-	find $(abspath $(@D)) -iname $(*F)_\*_mask.jpg >$@
+	find $(abspath $(@D)) -iname $(*F)_[0-9][0-9][0-9]_mask.jpg >$@
 
 $(MASKDIR)/mask_list : $(mask_masks) | $(MASKDIR)
 	cat $+ >$@
