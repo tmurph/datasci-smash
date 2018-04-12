@@ -103,6 +103,7 @@ $(MAKEABLE_DIRS) :
 # avi stuff
 
 $(SCRIPTDIR)/setup_files_logic.sh : $(dtm_setup_files) | $(SETUPFILESDIR)
+	touch $@
 
 %_setup_files_list : $(SCRIPTDIR)/setup_files_logic.sh
 	$(BASH) $< $@ >$@
