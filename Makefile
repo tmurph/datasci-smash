@@ -179,9 +179,6 @@ $(bg_images) $(nobg_images) : %_image_list : %_001.jpg
 $(IMAGEDIR)/image_list : $(bg_images) | $(IMAGEDIR)
 	cat $+ >$@
 
-$(NOBG_IMAGEDIR)/image_list : $(nobg_images) | $(NOBG_IMAGEDIR)
-	cat $+ >$@
-
 images : $(IMAGEDIR)/image_list
 
 # histogram stuff
