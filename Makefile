@@ -173,7 +173,7 @@ $(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02)
 	  -vf framestep=step=10 \
 	  $(@D)/$(*F)_%03d.jpg
 
-$(bg_images) $(nobg_images) : %_image_list : %_001.jpg
+$(bg_images) $(nobg_images) $(hist_images) : %_image_list : %_001.jpg
 	find $(abspath $(@D)) -iname $(*F)_\*.jpg >$@
 
 $(IMAGEDIR)/image_list : $(bg_images) | $(IMAGEDIR)
@@ -185,13 +185,6 @@ images : $(IMAGEDIR)/image_list
 
 $(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
 	$(PYTHON) $< --header >$@
-
-$(HISTDIR)/%_001.jpg : $(NOBG_IMAGEDIR)/%_001.jpg | $(NOBG_IMAGEDIR)
-	find $(@D) -iname $(*F)_\*.jpg -exec rm '{}' +
-	find $(abspath $(<D)) -iname $(*F)_\*.jpg -exec ln -s -t $(@D) '{}' +
-
-$(hist_images) : %_image_list : %_001.jpg
-	find $(abspath $(@D)) -iname $(*F)_\*.jpg >$@
 
 .PRECIOUS : $(HISTDIR)/%_hist.csv
 
