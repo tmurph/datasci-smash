@@ -1,10 +1,10 @@
 avi_filename="$1"
 dolphin_binary="$2"
-dtm_filename="$3"
-total_sec=$(printf "%.0f" "$4")
+melee_iso="$3"
+dtm_filename="$4"
+total_sec=$(printf "%.0f" "$5")
 
 avi_dir="$(dirname $0)/record_avi"
-melee_iso="${avi_dir}/Super Smash Bros. Melee (v1.02).iso"
 
 user_dir="${avi_dir}/dolphin-user"
 

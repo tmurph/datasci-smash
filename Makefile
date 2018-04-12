@@ -160,15 +160,15 @@ $(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_compile.sql \
 	  $(PYTHON) $(word 2,$+) $(patsubst %,@%,$(wordlist 3,5,$+)); \
 	} | $(TEXT2DTM) $@ $(word 6,$+) -
 
-$(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02).iso :
-	@echo "ERROR: you must legally obtain a copy of "$(<F)
-	@echo "       and place it in "$(<D)" to proceed"
+$(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso :
+	$(error ERROR: you must legally obtain a copy of $(@F) and place \
+		it in $(@D) to proceed)
 
-$(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02).iso
-	touch $@
-
-%.avi : $(SCRIPTDIR)/record_avi.sh %.dtm %_recording_sec
-	$(BASH) $< $@ $(DOLPHIN) $(word 2,$^) $$(cat $(word 3,$^))
+%.avi : $(SCRIPTDIR)/record_avi.sh \
+	$(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso \
+	%.dtm \
+	%_recording_sec
+	$(BASH) $< $@ $(DOLPHIN) $(word 2,$^) $(word 3,$^) $$(cat $(word 4,$^))
 
 # image stuff
 
