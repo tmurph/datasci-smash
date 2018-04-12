@@ -186,17 +186,15 @@ images : $(IMAGEDIR)/image_list
 $(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
 	$(PYTHON) $< --header >$@
 
-.PRECIOUS : $(HISTDIR)/%_hist.csv
+.PRECIOUS : %_hist.csv
 
 %_hist.csv : $(HISTDIR)/hist_header.csv \
 	     $(SCRIPTDIR)/process_images.py \
-	     %_image_list \
-	     | $(HISTDIR)
+	     %_image_list
 	cat $< >$@
 	$(PYTHON) $(word 2,$^) @$(word 3,$^) >>$@
 
-$(HISTDIR)/hist.csv : $(HISTDIR)/hist_header.csv $(hist_csvs) \
-		      | $(HISTDIR)
+$(HISTDIR)/hist.csv : $(HISTDIR)/hist_header.csv $(hist_csvs) | $(HISTDIR)
 	cat $< >$@
 	printf "%s\n" $(wordlist 2,$(words $^),$^) | \
 	  xargs -L 1 sed -e '1 d' >>$@
