@@ -154,11 +154,14 @@ $(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_compile.sql \
 	DENOM=120 $(BASH) $< $(wordlist 2,$(words $^),$^) >$@
 
 %.dtm : %_setup_files_list $(SCRIPTDIR)/compile_moves.py \
+	$(COMPILEMOVESDIR)/$$(call char_name_from_stem,$$*)_frames.csv \
+	$(COMPILEMOVESDIR)/dtm_inputs.csv \
 	%_setup_moves_list $(MOVES_LIST) $(MOVES_LIST) \
 	$(RECORDAVIDIR)/melee_header
 	{ cat $(word 1,$+) | xargs cat ; \
-	  $(PYTHON) $(word 2,$+) $(patsubst %,@%,$(wordlist 3,5,$+)); \
-	} | $(TEXT2DTM) $@ $(word 6,$+) -
+	  $(PYTHON) $(word 2,$+) $(wordlist 3,4,$+) \
+	    $(patsubst %,@%,$(wordlist 5,7,$+)); \
+	} | $(TEXT2DTM) $@ $(word 8,$+) -
 
 $(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso :
 	$(error ERROR: you must legally obtain a copy of $(@F) and place \
