@@ -17,22 +17,10 @@ signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 inputs_per_frame = 4
 input_padding = '0:0:0:0:0:0:0:0:0:0:0:0:0:0:128:128:128:128'
-initial_orientation = 'right'
 turnaround_moves = ['roll-forward', 'turn-around']
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-resources_dir = 'compile_moves'
-character_csv = os.path.join(script_dir, resources_dir,
-                             'character_frames.csv')
-dtm_csv = os.path.join(script_dir, resources_dir, 'dtm_inputs.csv')
-# index on character, move
-character_moves = pd.read_csv(character_csv, index_col=[0, 1])
-# index on move, orientation, step number
-dtm_moves = pd.read_csv(dtm_csv, index_col=[0, 1, 2])
-
-
-def get_input_frame(orientation):
-    return dtm_moves.xs(orientation, level='Orientation')['DTM']
+def get_input_frame(inputs, orientation):
+    return inputs.xs(orientation, level='Orientation')['DTM']
 
 
 def special_case_move_maybe(character, move):
@@ -44,18 +32,19 @@ def special_case_move_maybe(character, move):
     return move
 
 
-def read_moves(character, move_list):
+def read_moves(character, move_list, frames, inputs,
+               initial_orientation='right'):
     "Compile a list of moves to DTM text format."
-    frame_series = character_moves.loc[character]['Frames']
+    frame_series = frames.loc[character]['Frames']
     orientation = initial_orientation
-    input_frame = get_input_frame(orientation)
+    input_frame = get_input_frame(inputs, orientation)
     result = []
     for move in move_list:
         move = special_case_move_maybe(character, move)
         input_series = input_frame.loc[move]
         if move in turnaround_moves:
             orientation = 'left' if orientation == 'right' else 'right'
-            input_frame = get_input_frame(orientation)
+            input_frame = get_input_frame(inputs, orientation)
         frame_duration = frame_series.loc[move]
         for input_string in input_series:
             result.extend([input_string] * inputs_per_frame)
@@ -72,16 +61,25 @@ def main(argv=None):
                    ' input data.')
     parser = argparse.ArgumentParser(description=description,
                                      fromfile_prefix_chars='@')
-    parser.add_argument('character', metavar='character',
-                        choices=character_moves.index.levels[0])
+    parser.add_argument('frames', metavar='frame_data',
+                        help='csv of Character,Move,Frames')
+    parser.add_argument('inputs', metavar='dtm_inputs',
+                        help='csv of Move,Orientation,Step,DTM')
+    parser.add_argument('character', metavar='character')
     parser.add_argument('moves', metavar='move', nargs='+',
-                        choices=dtm_moves.index.levels[0],
                         help='one move to compile;'
                         ' prefix with @ to use a from-file')
 
     args = parser.parse_args(argv[1:])
 
-    print(read_moves(args.character, args.moves))
+    # index on character, move
+    character_frames = pd.read_csv(args.frames, index_col=[0, 1])
+    # index on move, orientation, step number
+    dtm_inputs = pd.read_csv(args.inputs, index_col=[0, 1, 2])
+
+
+    print(read_moves(args.character, args.moves, character_frames,
+                     dtm_inputs))
 
     return 0
 

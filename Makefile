@@ -1,8 +1,11 @@
+.SECONDEXPANSION :
+
 BASH := bash
 PYTHON := python3
 TEXT2DTM := text2dtm
 FFMPEG := ffmpeg
 DOLPHIN := /usr/games/dolphin-emu
+SQLITE := sqlite3
 
 SCRIPTDIR := scripts
 SETUPFILESDIR := $(SCRIPTDIR)/setup_files
@@ -11,13 +14,11 @@ RECORDAVIDIR := $(SCRIPTDIR)/record_avi
 
 DATADIR := data
 IMAGEDIR := $(DATADIR)/images
-NOBG_IMAGEDIR := $(DATADIR)/images_nobg
 HISTDIR := $(DATADIR)/hist
 MASKDIR := $(DATADIR)/masks
 KERASDIR := $(DATADIR)/keras
 
-MAKEABLE_DIRS := $(IMAGEDIR) $(NOBG_IMAGEDIR) $(HISTDIR) $(MASKDIR) \
-		 $(KERASDIR)
+MAKEABLE_DIRS := $(IMAGEDIR) $(HISTDIR) $(MASKDIR) $(KERASDIR)
 
 CHARACTERS := falco falcon fox jigglypuff marth peach samus sheik
 COLORS := 0 1 2 3 4
@@ -48,12 +49,15 @@ bg_images := $(addprefix $(IMAGEDIR)/,\
 		$(addsuffix _image_list,\
 		  $(bg_stems)))
 
-nobg_stems := $(addsuffix _bg_off,$(stem_roots))
-nobg_images := $(addprefix $(NOBG_IMAGEDIR)/,\
-		  $(addsuffix _image_list,\
-		    $(nobg_stems)))
+mask_stems := $(addsuffix _bg_off,$(stem_roots))
+mask_images := $(addprefix $(MASKDIR)/,\
+		 $(addsuffix _image_list,\
+		   $(mask_stems)))
+mask_masks := $(addprefix $(MASKDIR)/,\
+	   	  $(addsuffix _mask_list,\
+	     	    $(mask_stems)))
 
-hist_stems := $(nobg_stems)
+hist_stems := $(mask_stems)
 hist_images := $(addprefix $(HISTDIR)/,\
 		 $(addsuffix _image_list,\
 		   $(hist_stems)))
@@ -61,10 +65,7 @@ hist_csvs := $(addprefix $(HISTDIR)/,\
 		  $(addsuffix _hist.csv,\
 		    $(hist_stems)))
 
-mask_stems := $(nobg_stems)
-mask_masks := $(addprefix $(MASKDIR)/,\
-	   	  $(addsuffix _mask_list,\
-	     	    $(mask_stems)))
+char_name_from_stem = $(firstword $(subst _, ,$(notdir $(1))))
 
 usage : # this happens when make is called with no arguments
 	@echo "Usage:"
@@ -79,16 +80,10 @@ usage : # this happens when make is called with no arguments
 	@echo "Set the optional arguments HISTDIR, IMAGEDIR, and MASKDIR"
 	@echo "  to change the destination of results."
 	@echo ""
-	@echo "Set the optional argument NOBG_IMAGEDIR to change the"
-	@echo "  location of intermediate, no-background images. This"
-	@echo "  option affects where \`make hist' and \`make masks'"
-	@echo "  look for no-background images to process."
-	@echo ""
 	@echo "Current directories are:"
 	@echo "  HISTDIR="$(HISTDIR)
 	@echo "  IMAGEDIR="$(IMAGEDIR)
 	@echo "  MASKDIR="$(MASKDIR)
-	@echo "  NOBG_IMAGEDIR="$(NOBG_IMAGEDIR)
 	@echo ""
 	@echo "Current scope is:"
 	@echo "  CHARACTERS="$(CHARACTERS)
@@ -102,6 +97,7 @@ $(MAKEABLE_DIRS) :
 # avi stuff
 
 $(SCRIPTDIR)/setup_files_logic.sh : $(dtm_setup_files) | $(SETUPFILESDIR)
+	touch $@
 
 %_setup_files_list : $(SCRIPTDIR)/setup_files_logic.sh
 	$(BASH) $< $@ >$@
@@ -112,16 +108,42 @@ $(SCRIPTDIR)/setup_files_logic.sh : $(dtm_setup_files) | $(SETUPFILESDIR)
 %_files_prefix_count : %_setup_files_list
 	cat $< | xargs grep -v '^#' | wc -l >$@
 
-$(SCRIPTDIR)/compile_moves.py : $(COMPILEMOVESDIR)/character_frames.csv \
-				$(COMPILEMOVESDIR)/dtm_inputs.csv
+$(COMPILEMOVESDIR)/%_frames_specific.csv :
+	$(error ERROR: you must place $(call char_name_from_stem,$*) \
+		specific frame data in $(@F) and place it in $(@D) to \
+		proceed)
 
-%_moves_prefix_count : $(SCRIPTDIR)/compile_moves.py %_setup_moves_list
-	$(PYTHON) $(word 1,$^) @$(word 2,$^) | wc -l >$@
+$(COMPILEMOVESDIR)/%_frames.csv : $(COMPILEMOVESDIR)/character_frames_compile.sql \
+				  $(COMPILEMOVESDIR)/character_frames_universal.csv \
+				  $(COMPILEMOVESDIR)/%_frames_specific.csv
+	{ echo ".mode csv" ; \
+	  echo ".headers on" ; \
+	  echo ".import $(word 2,$^) universal_frames" ; \
+	  echo ".import $(word 3,$^) specific_frames" ; \
+	  cat $< ; } | $(SQLITE) >$@
 
-%_total_moves_count : $(SCRIPTDIR)/compile_moves.py %_setup_moves_list \
+$(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_compile.sql \
+				    $(COMPILEMOVESDIR)/dtm_inputs_yes_orientation.csv \
+				    $(COMPILEMOVESDIR)/dtm_inputs_no_orientation.csv
+	{ echo ".mode csv" ; \
+	  echo ".headers on" ; \
+	  echo ".import $(word 2,$^) yes_orientation" ; \
+	  echo ".import $(word 3,$^) no_orientation" ; \
+	  cat $< ; } | $(SQLITE) >$@
+
+%_moves_prefix_count : $(SCRIPTDIR)/compile_moves.py \
+		       $(COMPILEMOVESDIR)/$$(call char_name_from_stem,%)_frames.csv \
+		       $(COMPILEMOVESDIR)/dtm_inputs.csv \
+		       %_setup_moves_list
+	$(PYTHON) $< $(wordlist 2,3,$^) @$(word 4,$^) | wc -l >$@
+
+%_total_moves_count : $(SCRIPTDIR)/compile_moves.py \
+		      $(COMPILEMOVESDIR)/$$(call char_name_from_stem,%)_frames.csv \
+		      $(COMPILEMOVESDIR)/dtm_inputs.csv \
+		      %_setup_moves_list \
 		      $(MOVES_LIST) $(MOVES_LIST)
-	$(PYTHON) $(word 1,$+) \
-	  $(patsubst %,@%,$(wordlist 2,$(words $+),$+)) | wc -l >$@
+	$(PYTHON) $< $(wordlist 2,3,$+) \
+		     $(patsubst %,@%,$(wordlist 4,6,$+)) | wc -l >$@
 
 %_prefix_sec : $(SCRIPTDIR)/time_arithmetic.sh %_files_prefix_count \
 	       %_moves_prefix_count
@@ -138,33 +160,32 @@ $(SCRIPTDIR)/compile_moves.py : $(COMPILEMOVESDIR)/character_frames.csv \
 	  $(PYTHON) $(word 2,$+) $(patsubst %,@%,$(wordlist 3,5,$+)); \
 	} | $(TEXT2DTM) $@ $(word 6,$+) -
 
-# sure would be nice to list the dolphin dependencies somehow
-$(SCRIPTDIR)/record_avi.sh : $(RECORDAVIDIR)/Super\ Smash\ Bros.\ Melee\ (v1.02).iso
-	@echo "ERROR: you must legally obtain a copy of "$(<F)
-	@echo "       and place it in "$(<D)" to proceed"
+$(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso :
+	$(error ERROR: you must legally obtain a copy of $(@F) and place \
+		it in $(@D) to proceed)
 
-%.avi : $(SCRIPTDIR)/record_avi.sh $(DOLPHIN) %.dtm %_recording_sec
-	$(BASH) $< $@ $(word 2,$^) $(word 3,$^) $$(cat $(word 4,$^))
+%.avi : $(SCRIPTDIR)/record_avi.sh \
+	$(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso \
+	%.dtm \
+	%_recording_sec
+	$(BASH) $< $@ $(DOLPHIN) $(word 2,$^) $(word 3,$^) $$(cat $(word 4,$^))
 
 # image stuff
 
 .PRECIOUS : %_001.jpg
 
 %_001.jpg : %_prefix_sec %.avi
-	find $(@D) -iname $(*F)_\*.jpg -exec rm '{}' +
+	find $(@D) -iname $(*F)_[0-9][0-9][0-9].jpg -exec rm '{}' +
 	$(FFMPEG) -nostats -hide_banner -loglevel panic \
 	  -ss $$(cat $(word 1,$^)) \
 	  -i $(word 2,$^) \
 	  -vf framestep=step=10 \
 	  $(@D)/$(*F)_%03d.jpg
 
-$(bg_images) $(nobg_images) : %_image_list : %_001.jpg
-	find $(abspath $(@D)) -iname $(*F)_\*.jpg >$@
+$(bg_images) $(mask_images) $(hist_images) : %_image_list : %_001.jpg
+	find $(abspath $(@D)) -iname $(*F)_[0-9][0-9][0-9].jpg >$@
 
 $(IMAGEDIR)/image_list : $(bg_images) | $(IMAGEDIR)
-	cat $+ >$@
-
-$(NOBG_IMAGEDIR)/image_list : $(nobg_images) | $(NOBG_IMAGEDIR)
 	cat $+ >$@
 
 images : $(IMAGEDIR)/image_list
@@ -174,24 +195,15 @@ images : $(IMAGEDIR)/image_list
 $(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
 	$(PYTHON) $< --header >$@
 
-$(HISTDIR)/%_001.jpg : $(NOBG_IMAGEDIR)/%_001.jpg | $(NOBG_IMAGEDIR)
-	find $(@D) -iname $(*F)_\*.jpg -exec rm '{}' +
-	find $(abspath $(<D)) -iname $(*F)_\*.jpg -exec ln -s -t $(@D) '{}' +
-
-$(hist_images) : %_image_list : %_001.jpg
-	find $(abspath $(@D)) -iname $(*F)_\*.jpg >$@
-
-.PRECIOUS : $(HISTDIR)/%_hist.csv
+.PRECIOUS : %_hist.csv
 
 %_hist.csv : $(HISTDIR)/hist_header.csv \
 	     $(SCRIPTDIR)/process_images.py \
-	     %_image_list \
-	     | $(HISTDIR)
+	     %_image_list
 	cat $< >$@
 	$(PYTHON) $(word 2,$^) @$(word 3,$^) >>$@
 
-$(HISTDIR)/hist.csv : $(HISTDIR)/hist_header.csv $(hist_csvs) \
-		      | $(HISTDIR)
+$(HISTDIR)/hist.csv : $(HISTDIR)/hist_header.csv $(hist_csvs) | $(HISTDIR)
 	cat $< >$@
 	printf "%s\n" $(wordlist 2,$(words $^),$^) | \
 	  xargs -L 1 sed -e '1 d' >>$@
@@ -204,13 +216,13 @@ hist : $(HISTDIR)/hist.csv
 
 $(MASKDIR)/%_001_mask.jpg : $(SCRIPTDIR)/process_masks.py \
 			    $(HISTDIR)/%_hist.csv \
-			    $(NOBG_IMAGEDIR)/%_image_list \
+			    $(MASKDIR)/%_image_list \
 			    | $(MASKDIR)
-	find $(@D) -iname $(*F)_\*.jpg -exec rm '{}' +
+	find $(@D) -iname $(*F)_[0-9][0-9][0-9]_mask.jpg -exec rm '{}' +
 	$(PYTHON) $(word 1,$^) $(@D) $(word 2,$^) @$(word 3,$^)
 
 %_mask_list : %_001_mask.jpg
-	find $(abspath $(@D)) -iname $(*F)_\*.jpg >$@
+	find $(abspath $(@D)) -iname $(*F)_[0-9][0-9][0-9]_mask.jpg >$@
 
 $(MASKDIR)/mask_list : $(mask_masks) | $(MASKDIR)
 	cat $+ >$@
