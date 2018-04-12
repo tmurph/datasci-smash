@@ -171,7 +171,7 @@ $(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso :
 	$(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso \
 	%.dtm \
 	%_recording_sec
-	$(BASH) $< $@ $(DOLPHIN) $(word 2,$^) $(word 3,$^) $$(cat $(word 4,$^))
+	$(BASH) $< $@ $(DOLPHIN) "$(word 2,$^)" $(word 3,$^) $$(cat $(word 4,$^))
 
 # image stuff
 
