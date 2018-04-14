@@ -48,8 +48,14 @@ bg_stems := $(addsuffix _bg_on,$(stem_roots))
 bg_images := $(addprefix $(IMAGEDIR)/,\
 		$(addsuffix _image_list,\
 		  $(bg_stems)))
+bg_avis := $(addprefix $(IMAGEDIR)/,\
+	     $(addsuffix .avi,\
+	       $(bg_stems)))
 
 mask_stems := $(addsuffix _bg_off,$(stem_roots))
+mask_avis := $(addprefix $(MASKDIR)/,\
+	       $(addsuffix .avi,\
+		 $(mask_stems)))
 mask_images := $(addprefix $(MASKDIR)/,\
 		 $(addsuffix _image_list,\
 		   $(mask_stems)))
@@ -58,6 +64,9 @@ mask_masks := $(addprefix $(MASKDIR)/,\
 	     	    $(mask_stems)))
 
 hist_stems := $(mask_stems)
+hist_avis := $(addprefix $(HISTDIR)/,\
+	       $(addsuffix .avi,\
+		 $(hist_stems)))
 hist_images := $(addprefix $(HISTDIR)/,\
 		 $(addsuffix _image_list,\
 		   $(hist_stems)))
@@ -172,6 +181,10 @@ $(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso :
 	%.dtm \
 	%_recording_sec
 	$(BASH) $< $@ $(DOLPHIN) "$(word 2,$^)" $(word 3,$^) $$(cat $(word 4,$^))
+
+image_movies : $(bg_avis)
+mask_movies : $(mask_avis)
+hist_movies : $(hist_avis)
 
 # image stuff
 
