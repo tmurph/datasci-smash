@@ -10,3 +10,4 @@ graphviz
 pillow
 dtm2text
 opencv-python
+awscli
