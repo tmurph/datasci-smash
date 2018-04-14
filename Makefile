@@ -103,6 +103,8 @@ usage : # this happens when make is called with no arguments
 $(MAKEABLE_DIRS) :
 	mkdir -p $@
 
+dirs : $(MAKEABLE_DIRS)
+
 # avi stuff
 
 $(SCRIPTDIR)/setup_files_logic.sh : $(dtm_setup_files) | $(SETUPFILESDIR)
