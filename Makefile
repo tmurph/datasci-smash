@@ -198,7 +198,7 @@ hist_movies : $(hist_avis)
 	  -vf framestep=step=10 \
 	  $(@D)/$(*F)_%03d.jpg
 
-$(bg_images) $(mask_images) $(hist_images) : %_image_list : %_001.jpg
+%_image_list : %_001.jpg
 	find $(abspath $(@D)) -iname $(*F)_[0-9][0-9][0-9].jpg >$@
 
 $(IMAGEDIR)/image_list : $(bg_images) | $(IMAGEDIR)
