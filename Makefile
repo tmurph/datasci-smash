@@ -4,7 +4,7 @@ BASH := bash
 PYTHON := python3
 TEXT2DTM := text2dtm
 FFMPEG := ffmpeg
-DOLPHIN := /usr/games/dolphin-emu
+DOLPHIN := dolphin-emu
 SQLITE := sqlite3
 
 SCRIPTDIR := scripts
