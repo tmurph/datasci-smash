@@ -178,10 +178,10 @@ $(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso :
 	$(error ERROR: you must legally obtain a copy of $(@F) and place \
 		it in $(@D) to proceed)
 
-# make this a static pattern rule, instead of just an implicit rule.
-# that way, if Make fails because it can't find the iso, then it will
+# This should be a static pattern rule, instead of just an implicit rule.
+# That way, if Make fails because it can't find the iso, then it will
 # give the iso error message, instead of giving the "no rule to make
-# target" message used when it can't find a chain of implicit rules
+# target" message used when it can't find a chain of implicit rules.
 $(bg_avis) $(mask_avis) $(hist_avis) : %.avi : \
 	$(SCRIPTDIR)/record_avi.sh \
 	$(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso \
