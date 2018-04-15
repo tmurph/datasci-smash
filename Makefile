@@ -284,10 +284,10 @@ masks : $(MASKDIR)/mask_list
 # keras folder stuff
 
 $(KERASDIR)/labelled_image_list : $(IMAGEDIR)/image_list | $(KERASDIR)
-	sed -e 's|.*/\(.*\).jpg|\1 &|' -e 's/_bg_on//' <$< >$@
+	cat $< | sed -e 's|.*/\(.*\).jpg|\1 &|' -e 's/_bg_on//' | sort >$@
 
 $(KERASDIR)/labelled_mask_list : $(MASKDIR)/mask_list | $(KERASDIR)
-	sed -e 's|.*/\(.*\)_mask.jpg|\1 &|' -e 's/_bg_off//' <$< >$@
+	cat $< | sed -e 's|.*/\(.*\)_mask.jpg|\1 &|' -e 's/_bg_off//' | sort >$@
 
 $(KERASDIR)/labelled_image_mask_list : $(KERASDIR)/labelled_image_list \
 			      	       $(KERASDIR)/labelled_mask_list \
