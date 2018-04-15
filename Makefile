@@ -189,6 +189,35 @@ $(bg_avis) $(mask_avis) $(hist_avis) : %.avi : \
 	%_recording_sec
 	$(BASH) $< $@ $(DOLPHIN) "$(word 2,$^)" $(word 3,$^) $$(cat $(word 4,$^))
 
+# Making the previous implicit rule into a static pattern rule also
+# tells Make to treat %.dtm and %_recording_sec as non-intermediate.
+# Unfortunately, this doesn't work:
+# .INTERMEDIATE : %.dtm %_recording_sec
+# Instead we have to explicitly specify the intermediate targets.
+bg_dtms := $(addprefix $(IMAGEDIR)/,\
+	     $(addsuffix .dtm,\
+	       $(bg_stems)))
+bg_recs := $(addprefix $(IMAGEDIR)/,\
+	     $(addsuffix _recording_sec,\
+	       $(bg_stems)))
+.INTERMEDIATE : $(bg_dtms) $(bg_recs)
+
+mask_dtms := $(addprefix $(MASKDIR)/,\
+	       $(addsuffix .dtm,\
+		 $(mask_stems)))
+mask_recs := $(addprefix $(MASKDIR)/,\
+	       $(addsuffix _recording_sec,\
+		 $(mask_stems)))
+.INTERMEDIATE : $(mask_dtms) $(mask_recs)
+
+hist_dtms := $(addprefix $(HISTDIR)/,\
+	       $(addsuffix .dtm,\
+		 $(hist_stems)))
+hist_recs := $(addprefix $(HISTDIR)/,\
+	       $(addsuffix _recording_sec,\
+		 $(hist_stems)))
+.INTERMEDIATE : $(hist_dtms) $(hist_recs)
+
 image_movies : $(bg_avis)
 mask_movies : $(mask_avis)
 hist_movies : $(hist_avis)
