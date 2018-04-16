@@ -224,7 +224,16 @@ hist_movies : $(hist_avis)
 
 # image stuff
 
-.SECONDARY : %_001.jpg
+bg_jpgs := $(addprefix $(IMAGEDIR)/,\
+	     $(addsuffix _001.jpg,\
+	       $(bg_stems)))
+mask_jpgs := $(addprefix $(MASKDIR)/,\
+	       $(addsuffix _001.jpg,\
+		 $(mask_stems)))
+hist_jpgs := $(addprefix $(HISTDIR)/,\
+	       $(addsuffix _001.jpg,\
+		 $(hist_stems)))
+.SECONDARY : $(bg_jpgs) $(mask_jpgs) $(hist_jpgs)
 
 %_001.jpg : %_prefix_sec %.avi
 	find $(@D) -iname $(*F)_[0-9][0-9][0-9].jpg -exec rm '{}' +
@@ -247,7 +256,7 @@ images : $(IMAGEDIR)/image_list
 $(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
 	$(PYTHON) $< --header >$@
 
-.SECONDARY : %_hist.csv
+.SECONDARY : $(hist_csvs)
 
 %_hist.csv : $(HISTDIR)/hist_header.csv \
 	     $(SCRIPTDIR)/process_images.py \
@@ -264,7 +273,10 @@ hist : $(HISTDIR)/hist.csv
 
 # mask stuff
 
-.SECONDARY : $(MASKDIR)/%_001_mask.jpg
+mask_mask_jpgs := $(addprefix $(MASKDIR)/,\
+	       	    $(addsuffix _001_mask.jpg,\
+		      $(mask_stems)))
+.SECONDARY : $(mask_mask_jpgs)
 
 $(MASKDIR)/%_001_mask.jpg : $(SCRIPTDIR)/process_masks.py \
 			    $(HISTDIR)/%_hist.csv \
