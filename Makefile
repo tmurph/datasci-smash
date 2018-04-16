@@ -224,7 +224,7 @@ hist_movies : $(hist_avis)
 
 # image stuff
 
-.PRECIOUS : %_001.jpg
+.SECONDARY : %_001.jpg
 
 %_001.jpg : %_prefix_sec %.avi
 	find $(@D) -iname $(*F)_[0-9][0-9][0-9].jpg -exec rm '{}' +
@@ -247,7 +247,7 @@ images : $(IMAGEDIR)/image_list
 $(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
 	$(PYTHON) $< --header >$@
 
-.PRECIOUS : %_hist.csv
+.SECONDARY : %_hist.csv
 
 %_hist.csv : $(HISTDIR)/hist_header.csv \
 	     $(SCRIPTDIR)/process_images.py \
@@ -264,7 +264,7 @@ hist : $(HISTDIR)/hist.csv
 
 # mask stuff
 
-.PRECIOUS : $(MASKDIR)/%_001_mask.jpg
+.SECONDARY : $(MASKDIR)/%_001_mask.jpg
 
 $(MASKDIR)/%_001_mask.jpg : $(SCRIPTDIR)/process_masks.py \
 			    $(HISTDIR)/%_hist.csv \
