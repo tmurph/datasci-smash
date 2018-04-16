@@ -31,6 +31,8 @@ def special_case_move_maybe(character, move):
         move = 'charge-shot'
     elif character == 'peach' and move == 'down-b':
         move = 'turnip-throw'
+    elif character == 'sheik' and move == 'down-b':
+        move = 'stand-10'
     return move
 
 
