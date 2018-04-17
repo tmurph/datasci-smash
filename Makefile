@@ -133,6 +133,8 @@ $(COMPILEMOVESDIR)/%_frames.csv : $(COMPILEMOVESDIR)/character_frames_compile.sq
 	  echo ".import $(word 3,$^) specific_frames" ; \
 	  cat $< ; } | $(SQLITE) >$@
 
+.INTERMEDIATE : $(COMPILEMOVESDIR)/dtm_inputs.csv
+
 $(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_compile.sql \
 				    $(COMPILEMOVESDIR)/dtm_inputs_yes_orientation.csv \
 				    $(COMPILEMOVESDIR)/dtm_inputs_no_orientation.csv
