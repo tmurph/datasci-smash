@@ -187,6 +187,8 @@ $(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso :
 # That way, if Make fails because it can't find the iso, then it will
 # give the iso error message, instead of giving the "no rule to make
 # target" message used when it can't find a chain of implicit rules.
+.SECONDARY : $(bg_avis) $(mask_avis) $(hist_avis)
+
 $(bg_avis) $(mask_avis) $(hist_avis) : %.avi : \
 	$(SCRIPTDIR)/record_avi.sh \
 	$(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso \
