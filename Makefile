@@ -299,15 +299,23 @@ masks : $(MASKDIR)/mask_list
 
 # keras folder stuff
 
+.INTERMEDIATE : $(KERASDIR)/labelled_image_list
+
 $(KERASDIR)/labelled_image_list : $(IMAGEDIR)/image_list
 	cat $< | sed -e 's|.*/\(.*\).jpg|\1 &|' -e 's/_bg_on//' | sort >$@
+
+.INTERMEDIATE : $(KERASDIR)/labelled_mask_list
 
 $(KERASDIR)/labelled_mask_list : $(MASKDIR)/mask_list
 	cat $< | sed -e 's|.*/\(.*\)_mask.jpg|\1 &|' -e 's/_bg_off//' | sort >$@
 
+.INTERMEDIATE : $(KERASDIR)/labelled_image_mask_list
+
 $(KERASDIR)/labelled_image_mask_list : $(KERASDIR)/labelled_image_list \
 			      	       $(KERASDIR)/labelled_mask_list
 	join $+ >$@
+
+.INTERMEDIATE : $(KERASDIR)/shuffled_image_mask_list
 
 $(KERASDIR)/shuffled_image_mask_list : $(SCRIPTDIR)/random_shuffle.sh \
 				       $(KERASDIR)/labelled_image_mask_list
@@ -316,6 +324,9 @@ $(KERASDIR)/shuffled_image_mask_list : $(SCRIPTDIR)/random_shuffle.sh \
 keras_folder_lists := $(addprefix \
 			$(KERASDIR)/shuffled_image_mask_list_,\
 			  train test valid)
+
+.INTERMEDIATE : $(keras_folder_lists)
+
 $(keras_folder_lists) : $(SCRIPTDIR)/split_into_percentages.sh \
 			$(KERASDIR)/shuffled_image_mask_list
 	$(BASH) $< $(word 2,$^) test 10 valid 20 train
