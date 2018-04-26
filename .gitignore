@@ -2,3 +2,4 @@ scripts/record_avi/*.iso
 data/
 jupyter_images/
 dolphin-user/
+.ipynb_checkpoints/
