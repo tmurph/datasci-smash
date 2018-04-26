@@ -107,7 +107,7 @@ dirs : $(MAKEABLE_DIRS)
 
 # avi stuff
 
-$(SCRIPTDIR)/setup_files_logic.sh : $(dtm_setup_files) | $(SETUPFILESDIR)
+$(SCRIPTDIR)/setup_files_logic.sh : $(dtm_setup_files)
 	touch $@
 
 %_setup_files_list : $(SCRIPTDIR)/setup_files_logic.sh
@@ -248,14 +248,14 @@ hist_jpgs := $(addprefix $(HISTDIR)/,\
 %_image_list : %_001.jpg
 	find $(abspath $(@D)) -iname $(*F)_[0-9][0-9][0-9].jpg >$@
 
-$(IMAGEDIR)/image_list : $(bg_images) | $(IMAGEDIR)
+$(IMAGEDIR)/image_list : $(bg_images)
 	cat $+ >$@
 
 images : $(IMAGEDIR)/image_list
 
 # histogram stuff
 
-$(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
+$(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py
 	$(PYTHON) $< --header >$@
 
 .SECONDARY : $(hist_csvs)
@@ -266,7 +266,7 @@ $(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py | $(HISTDIR)
 	cat $< >$@
 	$(PYTHON) $(word 2,$^) @$(word 3,$^) >>$@
 
-$(HISTDIR)/hist.csv : $(HISTDIR)/hist_header.csv $(hist_csvs) | $(HISTDIR)
+$(HISTDIR)/hist.csv : $(HISTDIR)/hist_header.csv $(hist_csvs)
 	cat $< >$@
 	printf "%s\n" $(wordlist 2,$(words $^),$^) | \
 	  xargs -L 1 sed -e '1 d' >>$@
@@ -282,35 +282,32 @@ mask_mask_jpgs := $(addprefix $(MASKDIR)/,\
 
 $(MASKDIR)/%_001_mask.jpg : $(SCRIPTDIR)/process_masks.py \
 			    $(HISTDIR)/%_hist.csv \
-			    $(MASKDIR)/%_image_list \
-			    | $(MASKDIR)
+			    $(MASKDIR)/%_image_list
 	find $(@D) -iname $(*F)_[0-9][0-9][0-9]_mask.jpg -exec rm '{}' +
 	$(PYTHON) $(word 1,$^) $(@D) $(word 2,$^) @$(word 3,$^)
 
 %_mask_list : %_001_mask.jpg
 	find $(abspath $(@D)) -iname $(*F)_[0-9][0-9][0-9]_mask.jpg >$@
 
-$(MASKDIR)/mask_list : $(mask_masks) | $(MASKDIR)
+$(MASKDIR)/mask_list : $(mask_masks)
 	cat $+ >$@
 
 masks : $(MASKDIR)/mask_list
 
 # keras folder stuff
 
-$(KERASDIR)/labelled_image_list : $(IMAGEDIR)/image_list | $(KERASDIR)
+$(KERASDIR)/labelled_image_list : $(IMAGEDIR)/image_list
 	cat $< | sed -e 's|.*/\(.*\).jpg|\1 &|' -e 's/_bg_on//' | sort >$@
 
-$(KERASDIR)/labelled_mask_list : $(MASKDIR)/mask_list | $(KERASDIR)
+$(KERASDIR)/labelled_mask_list : $(MASKDIR)/mask_list
 	cat $< | sed -e 's|.*/\(.*\)_mask.jpg|\1 &|' -e 's/_bg_off//' | sort >$@
 
 $(KERASDIR)/labelled_image_mask_list : $(KERASDIR)/labelled_image_list \
-			      	       $(KERASDIR)/labelled_mask_list \
-			      	       | $(KERASDIR)
+			      	       $(KERASDIR)/labelled_mask_list
 	join $+ >$@
 
 $(KERASDIR)/shuffled_image_mask_list : $(SCRIPTDIR)/random_shuffle.sh \
-				       $(KERASDIR)/labelled_image_mask_list \
-				       | $(KERASDIR)
+				       $(KERASDIR)/labelled_image_mask_list
 	$(BASH) $< $(word 2,$^) | cut -d' ' -f 2- >$@
 
 keras_folder_lists := $(addprefix \
