@@ -320,11 +320,18 @@ $(keras_folder_lists) : $(SCRIPTDIR)/split_into_percentages.sh \
 			$(KERASDIR)/shuffled_image_mask_list
 	$(BASH) $< $(word 2,$^) test 10 valid 20 train
 
-$(KERASDIR)/%_done : $(KERASDIR)/shuffled_image_mask_list_%
+$(KERASDIR)/shuffled_image_mask_list_chars_% : $(KERASDIR)/shuffled_image_mask_list_%
+	cat $< | cut -d' ' -f1 | cut -d/ -f7 | cut -d_ -f1 | sort -u >$@
+
+$(KERASDIR)/%_done : $(KERASDIR)/shuffled_image_mask_list_% \
+		     $(KERASDIR)/shuffled_image_mask_list_chars_%
 	rm -rf $(@D)/$*
-	mkdir -p $(@D)/$*/images/dummy $(@D)/$*/masks/dummy
-	cut -d' ' -f 1 $< | xargs ln -s -t $(@D)/$*/images/dummy
-	cut -d' ' -f 2 $< | xargs ln -s -t $(@D)/$*/masks/dummy
+	while read char ;\
+	do \
+	  mkdir -p $(@D)/$*/images/$$char $(@D)/$*/masks/$$char ;\
+	  grep $$char $< | cut -d' ' -f1 | xargs ln -s -t $(@D)/$*/images/$$char ;\
+	  grep $$char $< | cut -d' ' -f2 | xargs ln -s -t $(@D)/$*/masks/$$char ;\
+	done <$(word 2,$^)
 	touch $@
 
 $(KERASDIR)/folders_done : $(KERASDIR)/train_done \
