@@ -20,8 +20,7 @@ KERASDIR := $(DATADIR)/keras
 
 MAKEABLE_DIRS := $(IMAGEDIR) $(HISTDIR) $(MASKDIR) $(KERASDIR)
 
-# CHARACTERS := falco falcon fox jigglypuff marth peach samus sheik
-CHARACTERS := falco fox jigglypuff marth peach
+CHARACTERS := falco falcon fox jigglypuff marth peach samus sheik
 COLORS := 0 1 2 3 4
 STAGES := battlefield dreamland final fountain stadium story
 ORIENTATIONS := left right
@@ -188,8 +187,6 @@ $(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso :
 # That way, if Make fails because it can't find the iso, then it will
 # give the iso error message, instead of giving the "no rule to make
 # target" message used when it can't find a chain of implicit rules.
-.SECONDARY : $(bg_avis) $(mask_avis) $(hist_avis)
-
 $(bg_avis) $(mask_avis) $(hist_avis) : %.avi : \
 	$(SCRIPTDIR)/record_avi.sh \
 	$(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso \
@@ -302,23 +299,15 @@ masks : $(MASKDIR)/mask_list
 
 # keras folder stuff
 
-.INTERMEDIATE : $(KERASDIR)/labelled_image_list
-
 $(KERASDIR)/labelled_image_list : $(IMAGEDIR)/image_list
 	cat $< | sed -e 's|.*/\(.*\).jpg|\1 &|' -e 's/_bg_on//' | sort >$@
-
-.INTERMEDIATE : $(KERASDIR)/labelled_mask_list
 
 $(KERASDIR)/labelled_mask_list : $(MASKDIR)/mask_list
 	cat $< | sed -e 's|.*/\(.*\)_mask.jpg|\1 &|' -e 's/_bg_off//' | sort >$@
 
-.INTERMEDIATE : $(KERASDIR)/labelled_image_mask_list
-
 $(KERASDIR)/labelled_image_mask_list : $(KERASDIR)/labelled_image_list \
 			      	       $(KERASDIR)/labelled_mask_list
 	join $+ >$@
-
-.INTERMEDIATE : $(KERASDIR)/shuffled_image_mask_list
 
 $(KERASDIR)/shuffled_image_mask_list : $(SCRIPTDIR)/random_shuffle.sh \
 				       $(KERASDIR)/labelled_image_mask_list
@@ -327,9 +316,6 @@ $(KERASDIR)/shuffled_image_mask_list : $(SCRIPTDIR)/random_shuffle.sh \
 keras_folder_lists := $(addprefix \
 			$(KERASDIR)/shuffled_image_mask_list_,\
 			  train test valid)
-
-.INTERMEDIATE : $(keras_folder_lists)
-
 $(keras_folder_lists) : $(SCRIPTDIR)/split_into_percentages.sh \
 			$(KERASDIR)/shuffled_image_mask_list
 	$(BASH) $< $(word 2,$^) test 10 valid 20 train
