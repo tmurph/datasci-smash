@@ -2,6 +2,8 @@ argparse
 numpy
 pandas
 ipykernel
+jupyter
+matplotlib
 keras
 tensorflow
 h5py
