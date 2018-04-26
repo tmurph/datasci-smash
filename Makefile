@@ -124,6 +124,11 @@ $(COMPILEMOVESDIR)/%_frames_specific.csv :
 		specific frame data in $(@F) and place it in $(@D) to \
 		proceed)
 
+char_frames : $(addprefix $(COMPILEMOVESDIR),\
+		$(addsuffix _frames.csv,\
+		  $(CHARACTERS)))
+.SECONDARY : $(char_frames)
+
 $(COMPILEMOVESDIR)/%_frames.csv : $(COMPILEMOVESDIR)/character_frames_compile.sql \
 				  $(COMPILEMOVESDIR)/character_frames_universal.csv \
 				  $(COMPILEMOVESDIR)/%_frames_specific.csv
