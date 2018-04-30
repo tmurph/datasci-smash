@@ -20,8 +20,7 @@ KERASDIR := $(DATADIR)/keras
 
 MAKEABLE_DIRS := $(IMAGEDIR) $(HISTDIR) $(MASKDIR) $(KERASDIR)
 
-# CHARACTERS := falco falcon fox jigglypuff marth peach samus sheik
-CHARACTERS := falco fox jigglypuff marth peach
+CHARACTERS := falco falcon fox jigglypuff marth peach samus sheik
 COLORS := 0 1 2 3 4
 STAGES := battlefield dreamland final fountain stadium story
 ORIENTATIONS := left right

@@ -13,3 +13,4 @@ pillow
 dtm2text
 opencv-python
 awscli
+nbdime
