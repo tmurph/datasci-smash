@@ -5,7 +5,7 @@ ipykernel
 jupyter
 matplotlib
 keras
-tensorflow
+tensorflow-gpu
 h5py
 pydot
 graphviz
