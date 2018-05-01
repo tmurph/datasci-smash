@@ -18,6 +18,10 @@ HISTDIR := $(DATADIR)/hist
 MASKDIR := $(DATADIR)/masks
 KERASDIR := $(DATADIR)/keras
 
+KERAS_TRAIN_PCT := 70
+KERAS_VALID_PCT := 20
+KERAS_TEST_PCT := 10
+
 MAKEABLE_DIRS := $(IMAGEDIR) $(HISTDIR) $(MASKDIR) $(KERASDIR)
 
 CHARACTERS := falco falcon fox jigglypuff marth peach samus sheik
@@ -333,7 +337,9 @@ $(keras_folder_lists) : $(KERASDIR)/folder_lists_done
 
 $(KERASDIR)/folder_lists_done : $(SCRIPTDIR)/split_into_percentages.sh \
 				$(KERASDIR)/shuffled_image_mask_list
-	$(BASH) $< $(word 2,$^) test 10 valid 20 train
+	$(BASH) $< $(word 2,$^) test $(KERAS_TEST_PCT) \
+		valid $(KERAS_VALID_PCT) \
+		train $(KERAS_TRAIN_PCT)
 	touch $@
 
 $(KERASDIR)/shuffled_image_mask_list_chars_% : $(KERASDIR)/shuffled_image_mask_list_%
