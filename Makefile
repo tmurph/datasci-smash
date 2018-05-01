@@ -327,11 +327,14 @@ keras_folder_lists := $(addprefix \
 			$(KERASDIR)/shuffled_image_mask_list_,\
 			  train test valid)
 
-.INTERMEDIATE : $(keras_folder_lists)
+.INTERMEDIATE : $(keras_folder_lists) $(KERASDIR)/folder_lists_done
 
-$(keras_folder_lists) : $(SCRIPTDIR)/split_into_percentages.sh \
-			$(KERASDIR)/shuffled_image_mask_list
+$(keras_folder_lists) : $(KERASDIR)/folder_lists_done
+
+$(KERASDIR)/folder_lists_done : $(SCRIPTDIR)/split_into_percentages.sh \
+				$(KERASDIR)/shuffled_image_mask_list
 	$(BASH) $< $(word 2,$^) test 10 valid 20 train
+	touch $@
 
 $(KERASDIR)/shuffled_image_mask_list_chars_% : $(KERASDIR)/shuffled_image_mask_list_%
 	cat $< | cut -d' ' -f1 | cut -d/ -f7 | cut -d_ -f1 | sort -u >$@
