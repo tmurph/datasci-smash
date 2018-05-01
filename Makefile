@@ -338,7 +338,7 @@ keras_folder_lists := $(addprefix \
 			$(KERASDIR)/shuffled_image_mask_list_,\
 			  train test valid)
 
-.INTERMEDIATE : $(keras_folder_lists) $(KERASDIR)/folder_lists_done
+.INTERMEDIATE : $(KERASDIR)/folder_lists_done
 
 $(keras_folder_lists) : $(KERASDIR)/folder_lists_done
 
