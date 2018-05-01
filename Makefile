@@ -302,9 +302,15 @@ masks : $(MASKDIR)/mask_list
 $(KERASDIR)/labelled_image_list : $(IMAGEDIR)/image_list
 	cat $< | sed -e 's|.*/\(.*\).jpg|\1 &|' -e 's/_bg_on//' | sort >$@
 
+.INTERMEDIATE : $(KERASDIR)/filtered_mask_list
+
+$(KERASDIR)/filtered_mask_list : $(SCRIPTDIR)/filter_masks.py \
+				 $(MASKDIR)/mask_list
+	$(PYTHON) $< <$(word 2,$^) >$@
+
 .INTERMEDIATE : $(KERASDIR)/labelled_mask_list
 
-$(KERASDIR)/labelled_mask_list : $(MASKDIR)/mask_list
+$(KERASDIR)/labelled_mask_list : $(KERASDIR)/filtered_mask_list
 	cat $< | sed -e 's|.*/\(.*\)_mask.jpg|\1 &|' -e 's/_bg_off//' | sort >$@
 
 .INTERMEDIATE : $(KERASDIR)/labelled_image_mask_list
