@@ -306,7 +306,7 @@ $(KERASDIR)/labelled_image_list : $(IMAGEDIR)/image_list
 
 $(KERASDIR)/filtered_mask_list : $(SCRIPTDIR)/filter_masks.py \
 				 $(MASKDIR)/mask_list
-	$(PYTHON) $< <$(word 2,$^) >$@
+	$(PYTHON) $< @$(word 2,$^) >$@
 
 .INTERMEDIATE : $(KERASDIR)/labelled_mask_list
 
