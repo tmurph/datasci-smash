@@ -260,19 +260,15 @@ images : $(IMAGEDIR)/image_list
 
 # histogram stuff
 
-$(HISTDIR)/hist_header.csv : $(SCRIPTDIR)/process_images.py
-	$(PYTHON) $< --header >$@
-
 .SECONDARY : $(hist_csvs)
 
-%_hist.csv : $(HISTDIR)/hist_header.csv \
-	     $(SCRIPTDIR)/process_images.py \
+%_hist.csv : $(SCRIPTDIR)/process_images.py \
 	     %_image_list
-	cat $< >$@
-	$(PYTHON) $(word 2,$^) @$(word 3,$^) >>$@
+	$(PYTHON) $< --header >$@
+	$(PYTHON) $< @$(word 2,$^) >>$@
 
-$(HISTDIR)/hist.csv : $(HISTDIR)/hist_header.csv $(hist_csvs)
-	cat $< >$@
+$(HISTDIR)/hist.csv : $(SCRIPTDIR)/process_images.py $(hist_csvs)
+	$(PYTHON) $< --header >$@
 	printf "%s\n" $(wordlist 2,$(words $^),$^) | \
 	  xargs -L 1 sed -e '1 d' >>$@
 
