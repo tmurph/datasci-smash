@@ -2231,3 +2231,10 @@ I may want to go back and check what happens with preprocessing and just 1 hidde
 
 The blog recommends I should play with learning rate (make it bigger) and “regularization” a/k/a dropout a/k/a inserting some randomness.  
 
+--------------------------------------------------------------------------------
+
+Oh wow.  So I found a bug in my train / test / valid splitting code.  Rerunning now, I’m really hoping that improves performance.
+
+Also it seems I’ve topped out on playing with some of the suggestions from that blog.  I can’t really get beyond 75% / 80% accuracy.  Could be too little data?  But it takes for fucking ever to run …
+
+Turns out!  It’s because I’m rerunning VGG every time, and even with a beefy GPU that’s expensive.  There’s a great [[https://blog.keras.io/building-powerful-image-classification-models-using-very-little-data.html][keras blog post]] though that lays out a good strategy … run VGG once to extract features, then just train a tiny network on that.  I can’t use data augmentation … but I could make up for that by tweaking dropout and using all my images.  Neat!
