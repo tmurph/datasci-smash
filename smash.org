@@ -36,17 +36,120 @@ this is the only thing that stops me from running make with just a bajillion cor
 
 * Setup
 
+** AWS Ubuntu
+This comes in three parts, because we have to drop back home in the middle.
+
+Update the property values when the target remote changes.
+
+*** Quick remote setup
+:PROPERTIES:
+:header-args:shell: :dir /ssh:amazon-gpu:
+:END:
+
+#+BEGIN_SRC shell
+  mkdir bin
+  mkdir -p .emacs.d/server
+#+END_SRC
+
+#+RESULTS:
+
+*** Quick local push
+:PROPERTIES:
+:header-args:shell: :var remote="amazon-gpu"
+:END:
+
+#+BEGIN_SRC shell
+  cat ~/bin/ec | sed -e "s/amazon/${remote}/" | ssh ${remote} "cat >~/bin/ec"
+  scp ~/.emacs.d/server/server ${remote}:.emacs.d/server
+  scp ~/.ssh/id_rsa ${remote}:.ssh
+  scp ~/.ssh/id_rsa.pub ${remote}:.ssh
+  scp ~/.gitconfig ${remote}:
+#+END_SRC
+
+#+RESULTS:
+
+*** Final remote setup
+:PROPERTIES:
+:header-args:shell: :dir /ssh:amazon-gpu:
+:END:
+
+#+BEGIN_SRC shell
+  chmod +x ~/bin/ec
+
+  sudo add-apt-repository ppa:dolphin-emu/ppa -y
+  sudo apt update
+
+  git clone https://github.com/tmurph/datasci-smash
+  cd datasci-smash
+  xargs -a ubuntu-packages.txt sudo apt install -y
+  pip3 install -r requirements.txt --user
+  sudo X :0 &
+#+END_SRC
+
+#+RESULTS:
+
+then this is for convenience
+
+#+BEGIN_SRC shell :results silent
+  sudo apt install emacs24-nox -y
+
+  cd ~
+  rm -rf datasci-smash
+
+  echo 'github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==' >>~/.ssh/known_hosts 
+  git clone git@github.com:tmurph/datasci-smash.git
+
+  cat >.bash_profile <<EOF
+  export EDITOR="$HOME/bin/ec"
+  export PATH="$HOME/bin:$HOME/.local/bin:$PATH"
+  export DISPLAY=:0
+
+  if [ -f "$HOME/.bashrc" ]; then
+     . "$HOME/.bashrc"
+  fi
+  EOF
+#+END_SRC
+
+#+RESULTS:
+
+and this is to work around copyright stuff
+
+#+BEGIN_SRC shell
+  touch ~/datasci-smash/scripts/record_avi/Super_Smash_Bros._Melee_\(v1.02\).iso
+#+END_SRC
+
+#+RESULTS:
+
+*** Setup data
+:PROPERTIES:
+:header-args:shell: :dir /ssh:amazon-gpu:datasci-smash
+:END:
+
+#+BEGIN_SRC shell :results silent
+  make dirs
+#+END_SRC
+
+#+RESULTS:
+
+This download can take forever.
+
+#+BEGIN_SRC shell
+  aws s3 sync s3://datasci-smash/images data/images --exclude='*' --include='*jpg' &
+  aws s3 sync s3://datasci-smash/masks data/masks --exclude='*' --include='*mask.jpg' &
+#+END_SRC
+
+#+RESULTS:
+
+** Notebook Imports
+
+#+NAME: setup_libraries
 #+BEGIN_SRC jupyter
   %matplotlib inline
   import matplotlib
   import matplotlib.pyplot as plt
   from mpl_toolkits.mplot3d import Axes3D
   plt.rcParams['figure.figsize'] = [9, 8]
-#+END_SRC
 
-#+RESULTS:
-
-#+BEGIN_SRC jupyter
   import cv2
   import numpy as np
   import pandas as pd
@@ -54,6 +157,8 @@ this is the only thing that stops me from running make with just a bajillion cor
   pd.set_option('display.max_columns', 15)
   pd.set_option('display.max_rows', 20)
 #+END_SRC
+
+#+RESULTS: setup_libraries
 
 #+RESULTS:
 
@@ -657,7 +762,7 @@ I like https://www.kaggle.com/xingyang/show-me-the-fishes-object-localization-wi
  for the code, though it references [[file:~/Code/deepsense-whales][file:~/Code/deepsense-whales]] too.
 
 #+NAME: fishes-localization
-#+BEGIN_SRC jupyter :eval never
+#+BEGIN_SRC jupyter :eval never :tangle fishes-localization.py
   """
       In order to run this script, you need to download the annotation files from https://www.kaggle.com/c/the-nature-conservancy-fisheries-monitoring/discussion/25902 and modify the DATASET_FOLDER_PATH variable. The script has been tested on Python 3.6 with latest packages. You might need to modify the script because of the possible compatibility issues.
       The localization algorithm implemented here could achieve satisfactory results on the testing dataset. To further improve the performance, you may find the following links useful.
@@ -1047,9 +1152,10 @@ There’s this thing with the input tensor below.  The shape parameter varies wi
 
 Note also that the final loss is measured by mean squared error and we’re targeting four neurons.  Makes sense in my base case.  Eventually may have to learn how to model two different losses at the same time, to do category and regression.
 
+#+NAME: set_model
 #+BEGIN_SRC jupyter
   from keras.applications.vgg16 import VGG16
-  from keras.layers import Dense, Dropout, Flatten, Input
+  from keras.layers import Dense, Input, Flatten
   from keras.layers.normalization import BatchNormalization
   from keras.models import Model
   from keras.optimizers import Adam
@@ -1058,42 +1164,43 @@ Note also that the final loss is measured by mean squared error and we’re targ
   IMAGE_ROW_SIZE = 584
   IMAGE_COLUMN_SIZE = 480
 
-  def init_model(target_num=4, FC_block_num=2, FC_feature_dim=512, dropout_ratio=0.5, learning_rate=0.0001):
-      # Get the input tensor
-      input_tensor = Input(shape=(IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE, 3))
+  def init_model(target_num=4, dropout_ratio=0.5, learning_rate=0.0001):
+      input_shape = (IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE, 3)
 
-      # Convolutional blocks
-      pretrained_model = VGG16(include_top=False, weights="imagenet")
+      # Fine-tune prediction layer
+      pretrained_model = VGG16(include_top=False, weights='imagenet',
+                               input_shape=input_shape)
       for layer in pretrained_model.layers:
           layer.trainable = False
-      output_tensor = pretrained_model(input_tensor)
 
-      # FullyConnected blocks
+      output_tensor = pretrained_model.output
       output_tensor = Flatten()(output_tensor)
-      for _ in range(FC_block_num):
-          output_tensor = Dense(FC_feature_dim, activation="relu")(output_tensor)
-          output_tensor = BatchNormalization()(output_tensor)
-          output_tensor = Dropout(dropout_ratio)(output_tensor)
-      output_tensor = Dense(target_num, activation="sigmoid")(output_tensor)
+      # output_tensor = Dense(4096, activation='relu')(output_tensor)
+      # output_tensor = Dense(4096, activation='relu')(output_tensor)
+      output_tensor = Dense(target_num, activation="sigmoid", name="predictions")(output_tensor)
 
       # Define and compile the model
-      model = Model(input_tensor, output_tensor)
+      model = Model(inputs=pretrained_model.input, outputs=output_tensor)
       model.compile(optimizer=Adam(lr=learning_rate), loss="mse")
 
       return model
-#+END_SRC
 
-#+RESULTS:
-
-#+BEGIN_SRC jupyter :results replace :file model.png :output-dir
   model = init_model()
+#+END_SRC
 
+#+RESULTS: set_model
+
+We can check out what the model looks like.
+
+#+HEADER: :var filename="./jupyter_images/model.png"
+#+BEGIN_SRC jupyter :results replace :file model.png
   from keras.utils.vis_utils import plot_model
-  plot_model(model, show_shapes=True, show_layer_names=True)
+  plot_model(model, to_file=filename, show_shapes=True,
+             show_layer_names=True)
 #+END_SRC
 
 #+RESULTS:
-[[file:model.png]]
+[[file:./jupyter_images/model.png]]
 
 Time to generate some training and validation sets.
 
@@ -1102,199 +1209,6 @@ Here’s a snag, though.  If we wanna do data augmentation (and I guess we do?) 
 I kinda wonder if there’s an element here from Gelman’s modeling advice.  We could try to model the bounding box of the character, try to predict four numbers =(x, y, l, w)= … or we could try to model the segmentation of the character, all pixel-by-pixel probabilities of being the character or not, and *then* reduce that to a bounding box at the end if you want.
 
 So, quick digression, we’ve gotta process the images to their masks.
-
-** Mask Script
-
-#+BEGIN_SRC jupyter :tangle scripts/process_masks.py :eval no
-  import os
-  import sys
-  import argparse
-  import re
-  from itertools import groupby
-
-  import numpy as np
-  import pandas as pd
-  import cv2
-
-  int8_max = 255
-
-  hue_chan = 0
-  hue_min = 0
-  hue_max = 180
-
-  img_re = re.compile('(?:[^/]*/)*'
-                      '(?P<character>[^_]*)_'
-                      '(?P<color>[^_]*)_'
-                      '(?P<stage>[^_]*)_'
-                      '(?P<orientation>[^_]*)_'
-                      'bg_(?P<background>[^_]*)_'
-                      '(?P<number>[0-9]{3})'
-                      '.jpg')
-
-
-  def writeable_dir(prospective_dir):
-      if not os.path.isdir(prospective_dir):
-          raise Exception(f"{prospective_dir} is not a valid path")
-      if not os.access(prospective_dir, os.W_OK):
-          raise Exception(f"{prospective_dir} is not a writeable dir")
-      return prospective_dir
-
-
-  class CharacterColorHistogram():
-
-
-      def __init__(self, master_hist):
-          # Reduce the master hue histogram to character/color averages
-          cha_col_df = master_hist.drop(
-              ['stage', 'orientation', 'number'], axis=1)
-          h_cols = cha_col_df.columns.str.contains('H')
-          h_total = cha_col_df.iloc[:, h_cols].sum(axis=1)
-
-          cha_col_df = cha_col_df.loc[h_total > 0]
-          h_total = h_total.loc[h_total > 0]
-
-          cha_col_df.iloc[:, h_cols] = cha_col_df.iloc[:, h_cols].divide(
-              h_total, axis='index')
-          agg_df = cha_col_df.groupby(['character', 'color']).agg(np.mean)
-
-          self._aggregate_df = agg_df
-
-
-      def histogram(self, character, color):
-          float_hist = self._aggregate_df.loc[character, color].values
-          float_hist = float_hist.reshape(len(float_hist), 1)
-          back_proj_hist = cv2.normalize(float_hist, float_hist,
-                                         alpha=0, beta=int8_max,
-                                         norm_type=cv2.NORM_MINMAX,
-                                         dtype=cv2.CV_8U)
-          back_proj_hist = back_proj_hist.reshape(len(back_proj_hist))
-          return back_proj_hist
-
-
-  def cutoff_thresh(hist, min_peak_height=4):
-      "Determine a threshold to select tall peaks from HIST."
-      # where are the peaks?
-      first = hist[0] > hist[1]
-      middle = [hist[i] < e > hist[i+2]
-                for i, e in enumerate(hist[1:-1])]
-      last = hist[-2] < hist[-1]
-      peak_p = [first] + middle + [last]
-
-      # how are the peaks spaced out?
-      peaks_above_x = np.zeros(int8_max, dtype=np.uint8)
-      for x in range(hist.max()):
-          peaks_above_x[x] = sum(abovep and peakp
-                                 for abovep, peakp
-                                 in zip(hist > x, peak_p))
-
-      # when's the first big peak?
-      for k, g in groupby(peaks_above_x):
-          peak_height = len(list(g))
-          if peak_height >= min_peak_height:
-              peak_key = k
-              break
-      for i, e in enumerate(peaks_above_x):
-          if e == peak_key:
-              first_index = i
-              break
-
-      return first_index
-
-
-  def mask_from_image(hsv_img, back_proj_hist, thresh,
-                      hsv_min=np.array([0, 50, 50]),
-                      hsv_max=np.array([179, 255, 255]),
-                      blur_size=11):
-      """Calculate a greyscale ROI mask from HSV_IMG.
-
-  Backproject the hues of HSV_IMG according to BACK_PROJ_HIST and cut off
-  the backprojection at THRESH.  In case multiple regions survive the
-  cutoff, select the region with the largest area.
-
-      """
-      # backproject hues, but mask out pixels with little saturation/value
-      hsv_mask = cv2.inRange(hsv_img, hsv_min, hsv_max)
-      h_img = hsv_img[:, :, hue_chan]
-      back_proj = back_proj_hist[h_img.ravel()].reshape(h_img.shape)
-      back_proj &= hsv_mask
-
-      # theshold and select largest region
-      _, thresh_img = cv2.threshold(back_proj, thresh, int8_max,
-                                    cv2.THRESH_BINARY)
-      blur_img = cv2.GaussianBlur(thresh_img, (blur_size, blur_size),
-                                  cv2.BORDER_CONSTANT)
-      _, contours, _ = cv2.findContours(blur_img, cv2.RETR_EXTERNAL,
-                                        cv2.CHAIN_APPROX_SIMPLE)
-      contours = sorted(contours, key=cv2.contourArea, reverse=True)
-
-      # calculate greyscale mask
-      if contours:
-          large_contour = contours[0]
-          final_mask = cv2.drawContours(np.zeros(blur_img.shape,
-                                                 dtype=np.uint8),
-                                        contours,
-                                        contourIdx=0,
-                                        color=int8_max,
-                                        thickness=cv2.FILLED)
-          final_mask &= blur_img
-      else:
-          final_mask = np.zeros(blur_img.shape)
-
-      return final_mask
-
-
-  def main(argv=None):
-      if argv is None:
-          argv = sys.argv
-
-      description = ('Process images to masks.')
-      parser = argparse.ArgumentParser(description=description,
-                                       fromfile_prefix_chars='@')
-      parser.add_argument('outdir', type=writeable_dir,
-                          help='directory to place mask images')
-      parser.add_argument('hist', type=argparse.FileType(),
-                          help='CSV of backprojection hue histograms')
-      parser.add_argument('image', nargs='+', help='images to process')
-
-      args = parser.parse_args(argv[1:])
-
-      image_name_lst = args.image
-      outdir = args.outdir
-      master_hist_df = pd.read_csv(args.hist)
-
-      character_colors = CharacterColorHistogram(master_hist_df)
-
-      for image_name in image_name_lst:
-          match = re.search(img_re, image_name)
-          if match:
-              character = match.group('character')
-              color = int(match.group('color'))
-
-              hsv_img = cv2.cvtColor(cv2.imread(image_name),
-                                     cv2.COLOR_BGR2HSV)
-              back_proj_hist = character_colors.histogram(character, color)
-              # couldn't tell you why, but for some reason I get better
-              # results including just the tippy top of the cutoff peaks
-              optimal_thresh = cutoff_thresh(back_proj_hist) - 1
-
-              mask_image = mask_from_image(hsv_img,
-                                           back_proj_hist,
-                                           optimal_thresh)
-              mask_image_name = ('{character}_'
-                                 '{color}_'
-                                 '{stage}_'
-                                 '{orientation}_'
-                                 'bg_{background}_'
-                                 '{number}_'
-                                 'mask.jpg').format(**match.groupdict())
-              cv2.imwrite(os.path.join(outdir, mask_image_name), mask_image)
-
-
-  if __name__ == '__main__':
-      sys.exit(main())
-#+END_SRC
-
-#+RESULTS:
 
 ** DONE make masks
 CLOSED: [2018-03-28 Wed 15:00]
@@ -1309,21 +1223,1011 @@ oh god, okay, now we need to actually figure out how to calculate the threshold 
 so that needs to happen in the masking function itself
 
 ** Back to Keras
+:PROPERTIES:
+:header-args:jupyter+: :existing kernel-095f57d6-b7cd-4898-8806-e861db980deb.json
+:header-args:jupyter+: :ssh amazon
+:header-args:jupyter+: :session smash-remote
+:END:
+
+#+CALL: setup_libraries()
+
+#+RESULTS:
+
+*** Localization
+So let’s just try to get bounding boxes first.  We’ll use the fine-tuned VGG network we built up above, and aim for just four points =(x, y, w, h)=.  For augmentation, don’t rotate or shear the images, but do shift, zoom, and flip them around.
+
+**** VGG16
+
+#+CALL: set_model()
+
+#+RESULTS:
 
 #+BEGIN_SRC jupyter
-  def generate_input_output_pairs(seed=None):
-      image_generator_object = ImageDataGenerator(
-          rotation_range=10,
-          width_shift_range=0.05,
-          height_shift_range=0.05,
-          shear_range=0.05,
-          zoom_range=0.2,
-          horizontal_flip=True,
-          rescale=1.0 / 255)
-      image_generator = image_generator_object.flow_from_directory(
-          directory=IMAGEDIR,
+  from keras.preprocessing.image import ImageDataGenerator
+
+  DATADIR = "data/keras"
+
+  def preprocess_fn(three_channel_image):
+      return three_channel_image[:, :, 0].astype(np.uint8)
+
+  def bounding_box(mask_image):
+      result = 0, 0, 0, 0
+
+      _, contours, _ = cv2.findContours(mask_image, cv2.RETR_EXTERNAL,
+                                      cv2.CHAIN_APPROX_SIMPLE)
+      contours = sorted(contours, key=cv2.contourArea, reverse=True)
+
+      if contours:
+          result = cv2.boundingRect(contours[0])
+
+      return result
+
+  def bbox_gen_from_mask_gen(mask_gen):
+      for batch in mask_gen:
+          new_batch = [bounding_box(preprocess_fn(image))
+                      for image in batch]
+          new_batch = np.array(new_batch, dtype=np.float32)
+          yield new_batch
+
+  def combo_generator(folder="train",
+                      data_gen_args={"fill_mode": "constant",
+                                     "cval": 0,
+                                     "width_shift_range": 0.05,
+                                     "height_shift_range": 0.05,
+                                     "zoom_range": 0.1,
+                                     "horizontal_flip": True,
+                                     "rescale": 1.0 / 255},
+                      data_flow_args={"seed": 1,
+                                      "batch_size": 32,
+                                      "class_mode": None}):
+
+      image_datagen = ImageDataGenerator(**data_gen_args)
+      mask_datagen = ImageDataGenerator(**data_gen_args)
+
+      image_generator = image_datagen.flow_from_directory(
+          directory=os.path.join(DATADIR, folder, "images"),
           target_size=(IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE),
           color_mode='rgb',
-          shuffle=True,
-          seed=seed)
+          ,**data_flow_args)
+
+      mask_generator = mask_datagen.flow_from_directory(
+          directory=os.path.join(DATADIR, folder, "masks"),
+          target_size=(IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE),
+          color_mode='grayscale',
+          ,**data_flow_args)
+
+      bbox_generator = bbox_gen_from_mask_gen(mask_generator)
+
+      return zip(image_generator, bbox_generator)
+
+  def steps_per_epoch(folder="train", batch_size=32):
+      directory = os.path.join(DATADIR, folder, "images", "dummy")
+      data_size = len(os.listdir(directory))
+      return data_size // batch_size
 #+END_SRC
+
+#+RESULTS:
+
+Just fyi, this can take a *really* long time to run.  Gonna need to practice on small data sets and rely on Amazon to do the heavy lifting.
+
+#+BEGIN_SRC jupyter :results output :eval query
+  model.fit_generator(generator=combo_generator("train"),
+                      steps_per_epoch=steps_per_epoch("train"),
+                      epochs=10,
+                      validation_data=combo_generator("valid"),
+                      validation_steps=steps_per_epoch("valid"))
+#+END_SRC
+
+#+RESULTS:
+
+Once we’re done, save the model so we don’t lose all that work!
+
+#+HEADER: :var filename="./data/keras/model.h5"
+#+BEGIN_SRC jupyter
+  model.save(filename)
+#+END_SRC
+
+#+RESULTS:
+
+Now how does it look on test data?
+
+#+HEADER: :var filename="./data/keras/model.h5"
+#+BEGIN_SRC jupyter
+  from keras.models import load_model
+  model = load_model(filename)
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter
+  def raw_image_generator(folder="test",
+                          data_flow_args={"seed": 1,
+                                          "batch_size": 32,
+                                          "class_mode": None}):
+
+      return ImageDataGenerator().flow_from_directory(
+          directory=os.path.join(DATADIR, folder, "images"),
+          target_size=(IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE),
+          color_mode='rgb',
+          ,**data_flow_args)
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter
+  predictions = model.predict_generator(raw_image_generator("test"),
+                                        steps=1)
+  predictions.tolist()
+#+END_SRC
+
+#+RESULTS:
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+| 1.0 | 1.0 | 1.0 | 1.0 |
+
+lol okay well … maybe there’s a problem because I didn’t rescale the inputs (some sources on the internet say you should rescale though?).  Or maybe because I don’t have enough dense layers in between the VGG convolutional layers and my prediction layer?
+
+Either way, it’s too slow to train on my laptop.  Time to figure out how to upload to Amazon.
+
+*** DONE post process mask images
+CLOSED: [2018-04-05 Thu 22:39]
+ugh, so, we can read this big array of grayscale images … but we can’t hack into the preprocessing data generation argument to process each image to a list of four ints.
+
+so I guess we gotta process that stuff after the images are flowed out of the directory.  okay, cool
+
+*** DONE split data into train, test, and validate
+CLOSED: [2018-04-06 Fri 13:36]
+- Note taken on [2018-04-06 Fri 13:36] \\
+  lol makefile all the way
+this should maybe be handled in the code, not in the makefile?  like, how do we ensure the image and masks stay in sync?
+
+*** DONE update makefile
+CLOSED: [2018-04-06 Fri 13:36]
+at the very least its gotta put images and masks in dummy categorical folders …
+
+in the future it may have to put them in real categorical folders, but let’s cross that bridge when we get to it
+
+*** TODO make seeding and splitting makefile variables
+right now we hard code the shuffling seed in the actual script file, and we hard code the train/test/valid split in the makefile.  uh, that’s not great.  oh well
+
+** Detour to learn AWS
+So I’m reading some stuff.  They’ve got boxes set up specifically for machine learning, which is nice.  They run on either Amazon Linux (eh?) or Ubuntu (okay fine).  They use Anaconda for virtual environments (ugh, I don’t wanna bother learning that one).
+
+It all seems pretty pricey, though.  p2.xlarge is 0.90 an hour (cheapest with access to a GPU) and p3.2xlarge is 3.06 / hour (recommended, has a shitzillion CPU and GPU cores).  I may want to find a cheaper option that’s all CPU just to practice AWS.  Then graduate to p2.xlarge.  Then read up on GPU and modify my script to take advantage of it.  Then graduate to p3.2xlarge.
+
+I also need to make *all* the data.  It’s probably worth learning how to do that first, kicking off an instance with a shitzillion CPU cores, and finding a way to save all the data to S3.  Then come back and work on the machine learning stuff.  When the data is all done, hopefully, I’ll be in a place to start training my shit.
+
+Okay, so plan.  
+
+*** DONE how do I upload data to S3?
+CLOSED: [2018-04-07 Sat 13:47]
+actually pretty easy.  can do a lot of management from the web console, and can automate stuff with =s3cmd=
+
+sidenote: did you know =find -exec += can’t handle ={}= in the middle of the command?  It has to come at the end!  Per somebody’s comment on stack exchange … why the fuck does ={}= need to be there if it must always come at the end?
+
+It’s okay.  Just use =xargs= in that case.  But dang, I have been making that wrong assumption forever without getting bitten.
+
+found because =s3cmd put= needs the filenames first, then the bucket last.  weird, but okay.
+
+*** DONE how do I read data from S3 onto ML box?
+CLOSED: [2018-04-07 Sat 14:09]
+so there’s =s3cmd= but apparently also there’s and =aws s3= command that amazon provides.  eh?  
+
+ah, looks like =aws s3= is the way to go because it has a =--sync= option.  it’s a lot like =rsync=.  don’t have to worry about overwriting stuff.
+
+oh wait, nvm.  =s3cmd= has the same option.  looks like you might want =--skip-existing= just so it doesn’t bother checking, like, last modified time and md5 hash, or something.
+
+I remember reading that =aws s3 --recursive= is weird about its include / exclude rules.  I’m kinda partial to =find | xargs= because of that, but if you want to go down the recursive route, just keep in mind that =--include= *stacks* on top of previous stuff, and the default is to include *everything*.  So for =--include= to have any effect, you need to precede it with an =--exclude '*'= or something similar.  Like, seriously?  You couldn’t figure that out automatically?  Ugh.
+
+it’s also fucking slow to upload from my laptop to S3, but with any luck it’ll be way faster S3 <-> EC2.
+
+*** DONE upload data to S3
+CLOSED: [2018-04-07 Sat 14:10]
+working on it
+
+*** DONE how do I make S3 data from a CPU box?
+CLOSED: [2018-04-12 Thu 12:20]
+ah yeah, this is the part where I need some sort of windowing system.  super cool.  time to revisit the X-Windows disaster.
+
+http://www.brianlinkletter.com/how-to-run-gui-applications-xfce-on-an-amazon-aws-cloud-server-instance/
+
+except JFC I don’t want to install a whole desktop environment.  just a simple window manager and go from there (fingers crossed)
+
+https://ubuntuforums.org/showthread.php?t=151703
+
+and then I’ll need to get a VNC client for myself.  Oh wait, Mac has one, just Cmd-Space for Screen Sharing.
+
+alrighty, so I just need to spin up an EC2 (start really cheap), get x-forwarding and VNC going, and record the steps.  then get dolphin on there, somehow, and get it running.  then get my Makefile on there and try to run one recording session.  then spin up a beefy EC2 and let it rip!
+
+**** DONE get X and VNC on cheapo EC2
+CLOSED: [2018-04-08 Sun 19:48]
+so I’ve got an instance working.  I need to record some stuff about it.
+
+InstanceID: i-06ed436a6e80e765b
+DNS: ec2-34-207-53-187.compute-1.amazonaws.com
+Private Key: ~/.ssh/amazon-ec2.pem
+User: ubuntu
+
+Set up permissions to log in via SSH, updated apt repositories, and boom!
+
+Need a little more direction, but fortunately found it here
+
+https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-vnc-on-ubuntu-14-04
+
+Quick digression, gotta get Emacs set up on the remote!
+
+https://andy.wordpress.com/2013/01/03/automatic-emacsclient/
+
+Woo!
+
+ANNNNNND I FINALLY GOT IT!  Took way too long to figure out how ssh port forwarding works … and I still don’t quite understand controlmaster stuff … but it works now!
+
+Oh yeah, I wonder if I need those security permissions?  Nope!  SSH handles everything!
+
+Also, kinda cool, I definitely didn’t need to install a full environment or anything.  twm is fine so far.
+
+So the important stuff was … for Emacs, =apt install emacs24-nox= and scp my local Emacs’ server file up there.  For VNC, =apt install tightvncserver= (that should pull in X) and uncomment the x-window-manager lines.  That might change, though, once we get Dolphin going.
+
+Lol.  Doesn’t look like much.  Took all day for me to figure it out, though.
+
+**** DONE get Dolphin on cheapo EC2
+CLOSED: [2018-04-08 Sun 20:29]
+Woo!  Ubuntu just has it!
+
+https://wiki.dolphin-emu.org/index.php?title=Installing_Dolphin#Ubuntu
+
+Ah, but fuck, of course.  Needs fancy graphics, I guess GTK+.  So let’s go get that.
+
+Shitty that it doesn’t get pulled in automatically?  Maybe because it’s suggested, I wonder if dolphin can work with other frameworks.
+
+Nope!  Not a fancy graphics thing!  Just that command line dolphin didn’t know where to draw.  Set an environment variable =DISPLAY= to =:1= and bob’s your uncle!
+
+**** DONE get a recording on cheapo EC2
+CLOSED: [2018-04-09 Mon 11:42]
+and move that data to S3
+
+Oh shit this one’s hard.  Good, shake some bugs out of my stuff.
+
+So, 1, gotta clone the repo.  Not too bad.  But then gotta tweak it.
+
+Need to upload the melee stuff, and lol.  It’s buried in the =scripts/record_avi= directory.  Um, lol.  
+
+Then gotta tweak the record script to use the right Ubuntu conventions.  God damn it.
+
+And gotta put my config file in the dolphin folder.  And hope that it’s good for Ubuntu.
+
+Holy fuck, that SCP transfer up to amazon is slow as shit!  Gonna take like 30 minutes to move that 1.4G melee iso.  Maybe look into FTP next time?
+
+Whoa, rsync is ten times faster.  Nice.
+
+Gotta upload my config folder, and gotta tweak the Dolphin.ini variables, and then gotta upload my memory card thing?
+
+Okay, so, that was some manual crap that’s awful.
+
+And now we’re all about that recording session.
+
+Oh shit!  Stuck.  Installed ffmpeg, but before we get there we can’t even play Dolphin games.  No graphics hardware on EC2!  Gotta get an instance with a GPU and hope …
+
+Okay, that’s for tomorrow, though.
+
+**** DONE make a quick setup script
+CLOSED: [2018-04-12 Thu 01:48]
+fuck docker, I honestly don’t see the need yet
+
+maybe it’s like an install script with better permissions?  I could see that.
+
+Yeah, I’m sorry, I just don’t see the point of docker for data science yet.  The official tutorial makes it clear how useful this is for deploying applications … but for DS it just sorta looks like an install script. 
+
+Which … thanks, but I’ve already got a requirements.txt for python.  Internet recommends writing a similar packages.txt for apt and just using xargs to get the right effect.  sounds fair.
+
+eh, there’s the emacsclient script.  and the melee binary (though wouldn’t that be against copyright to distribute with the docker image anyway?)
+
+and there’s my dolphin config stuff
+
+I mean, I suppose I could do this, but ugh.  Not right now.  Yeah, shit’s not gonna be reproducible for anybody else, but meh.  I’ve got a ubuntu-packages file, now, so at least I can install everything.  and the emacs stuff is kinda me-specific so I don’t really need to bother.  
+
+only real deal now is uploading the ISO (which, yeah, can’t really reproduce that for everybody) though maybe I should check the melee header into git.
+
+okay, and the dolphin config stuff.  just throw that in the git repo.
+
+arg, minor sticking point, I’ve gotta change the setup files list to skip over the “No Memory Card” popup.  it’s too annoying trying to update the config files to point to the uploaded memory card, and besides, I don’t need that
+
+holy fucking shit, dolphin-emu on linux takes =-U= for the user arg, while on mac takes =-u=.  what.
+
+now comes the fucking hardest part, is getting opengl working.  so, lesson learned, can’t actually use =vncserver= for that.  it starts its own baby X server, which never takes full advantage of the GPU.  check it
+
+https://stackoverflow.com/questions/45035347/steam-aws-machine-opengl-not-using-direct-rendering
+
+woo!  fuck yeah, x11vnc works instead!  time to tweak that command line and copy it down
+
+okay, I think I’ve got it.  you could put this in like an xinit or something.
+
+#+BEGIN_SRC shell
+  DISPLAY=:0 x11vnc -q -auth ~/.Xauthority -usepw -rfbport 5901 -bg -forever -shared
+#+END_SRC
+
+I dunno why it can’t guess the authority file.  usepw means to use the password file I previously made (so gotta make that).  for some reason I can’t use the default port (5900) right now because ssh forwarding is getting mad at me for unknown reasons.  perhaps a reboot would solve that.  and then -bg -q are just obvious.  need a -forever in case of weird random drops, otherwise the server closes if the connection drops.
+
+okay, it seems to die a lot on me, though.  annoying.  like, I type on or two keys and it dies.
+
+apparently that’s because the mac client likes to create a second connection a few seconds after the first?  or something?  at any rate, the default behavior is to deny second clients, but maybe the first mac connection kills itself after the second one tries?  very strange, but anyway, -shared fixes it.
+
+omg and of course, the version of dolphin on ubuntu is 4.0.2.  apparently my settings aren’t compatible with that one (no cheats for melee).  will have to see what I can do about that.
+
+cool, so there’s a dolphin ppa that provides the latest stable binaries.  nice.
+
+okay, now I’m feeling the benefits to a dockerfile.  like, yeah, I could automate all this with make.  make binaries, or something, but yeah.  it’d either be hard-coded for Ubuntu, or else would have to guess-and-check for various distros, or whatever.  okay, so just use docker for that.
+
+--------------------------------------------------------------------------------
+
+omigod I finally got it all working!  holy shit!
+
+yeah, now I appreciate the need for a docker file.  let’s get that written tomorrow, before I have a chance to forget too much of what I got working today
+
+--------------------------------------------------------------------------------
+
+just one last time through this.  after I instantiate a new instance, I …
+
+ssh in and 
+#+BEGIN_SRC shell :dir /ssh:amazon:
+  mkdir bin
+  mkdir -p .emacs.d/server
+#+END_SRC
+
+#+RESULTS:
+
+drop back and
+#+BEGIN_SRC shell
+  scp ~/bin/ec amazon:bin
+  scp ~/.emacs.d/server/server amazon:.emacs.d/server
+  scp ~/.ssh/id_rsa amazon:.ssh
+  scp ~/.ssh/id_rsa.pub amazon:.ssh
+  scp ~/.gitconfig amazon:
+#+END_SRC
+
+#+RESULTS:
+
+I’m sure there’s a better way
+
+then ssh in again and (this part could be dockerized)
+#+BEGIN_SRC shell :dir /ssh:amazon:
+  sudo add-apt-repository ppa:dolphin-emu/ppa -y
+  sudo apt update
+
+  git clone https://github.com/tmurph/datasci-smash
+  cd datasci-smash
+  xargs -a ubuntu-packages.txt sudo apt install -y
+  pip3 install -r requirements.txt
+  sudo X :0 &
+#+END_SRC
+
+#+RESULTS:
+
+for my own sanity we gotta clean some stuff up
+#+BEGIN_SRC shell :dir /ssh:amazon:
+  sudo apt install emacs24-nox -y
+
+  cd ~
+  rm -rf datasci-smash
+
+  echo 'github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==' >>~/.ssh/known_hosts 
+  git clone git@github.com:tmurph/datasci-smash.git
+
+  cat >.bash_profile <<EOF
+  export EDITOR=/home/ubuntu/bin/ec
+  export PATH=/home/ubuntu/bin:/home/ubuntu/.local/bin:$PATH
+  export DISPLAY=:0
+
+  if [ -f ~/.bashrc ]; then
+     . ~/.bashrc
+  fi
+  EOF
+#+END_SRC
+
+then (optionally) start some vnc action
+#+BEGIN_SRC shell :dir /ssh:amazon:
+  x11vnc -auth ~/.Xauthority -usepw -rfbport 5901 -bg -shared -forever
+#+END_SRC
+
+and finally upload the copyright questionable (come back home for this) (also this will take for fucking ever, so probably run it from a terminal)
+#+BEGIN_SRC shell :eval never
+  rsync -Paz ~/Code/datasci-smash/src/scripts/record_avi/'Super_Smash_Bros._Melee_(v1.02).iso' amazon:datasci-smash/scripts/record_avi &
+#+END_SRC
+
+and we’re off to the races.  can start running make stuff.
+
+huh, I’m noticing there’s some weirdness with environment variables and whatnot … like, the coming back home, then ssh back in, back and forth … I guess that clears the env variables (makes sense, they’re not in profile or anything).  cross that bridge when you get to it, though
+
+also, since a lot of this stuff is kinda long running, best start using tmux.  ugh, can’t tmux from in an emacs shell buffer, it’s too dumb.  cool.  gotta deal with shitty apple term (or get like an xterm, but ugh, I don’t want another terminal emulator)
+
+huzzah!  making fox data tonight!  just gotta log in tomorrow, attach tmux to the last session with =tmux a #= and awayyyyyyy we go!
+
+**** SKIPPED get a recording on expensive EC2
+CLOSED: [2018-04-12 Thu 12:19]
+got fox data going on fancy GPU computer!  just gonna move it tomorrow and away we go!
+
+move that data to S3, too
+
+*** DONE split character specific csv dependencies?
+CLOSED: [2018-04-13 Fri 16:34]
+right now, if I update any character’s frame data, make doesn’t know any better and decides it needs to update every character’s images.  maybe I can do better?
+
+*** SKIPPED maybe clean up compile moves script?
+CLOSED: [2018-04-13 Fri 16:34]
+it’s so ugly, should really just be one big class, instead of a bunch of global variables.  oh well, it works.
+
+*** DONE start making all the data
+CLOSED: [2018-04-22 Sun 16:36]
+oh god.  I ran out of space on my box, only 8G.  okay, we need a list:
+
+- [-] samus
+  - [X] images
+  - [ ] hist
+  - [ ] masks
+- [-] fox
+  - [ ] images
+  - [X] hist
+  - [ ] masks
+- [-] marth
+  - [ ] images
+  - [X] hist
+  - [ ] masks
+
+    
+then there’s some godawful inconsistencies that I guess I’m just gonna ¯\_(ツ)_/¯ about.  like
+
+1. the first 24 images or so of each fox video have the giant “GO!” logo in front.  my prefix second calculation assumes an offset of 420, because that’s what worked on my laptop.  but that’s too much for the amazon box, I think because it’s so much faster.  cool.  if I want to recalculate that prefix, I could do some experiments and figure it out.  but then I’d have to regenerate *all* the fox data again.  Ugh, do I really wanna do that?  Or just make the mask data with the script as-is, upload everything, and later come up with some wacko script that renames everybody?  Definitely the latter.
+2. samus histograms are crap, they only use ten images instead of the sixty or seventy they should.  I’m not sure why.  but you’ll want to redo that, redo the masks, and unless you wanna do all that work on your laptop, you’ll obvi have to redo the images to match.  ugh, cool.
+3. shit, are the histograms offset incorrectly as well?  fuck.  yup, they are.
+4. fuck, so all this work is really really borked.  glad you figured that out now.
+
+   --------------------------------------------------------------------------------
+
+Alright, new plan is to make videos on my laptop and images on amazon
+
+- [X] falco
+  - [X] images
+    - [X] movies
+    - [X] jpegs
+  - [X] hist
+    - [X] movies
+    - [X] jpegs
+  - [X] masks
+    - [X] movies
+    - [X] jpegs
+- [X] falcon
+  - [X] images
+    - [X] movies
+    - [X] jpegs
+  - [X] hist
+    - [X] movies
+    - [X] jpegs
+  - [X] masks
+    - [X] movies
+    - [X] jpegs
+- [X] fox
+  - [X] images
+    - [X] movies
+    - [X] jpegs
+  - [X] hist
+    - [X] movies
+    - [X] jpegs
+  - [X] masks
+    - [X] movies
+    - [X] jpegs
+- [X] jigglypuff
+  - [X] images
+    - [X] movies
+    - [X] jpegs
+  - [X] hist
+    - [X] movies
+    - [X] jpegs
+  - [X] masks
+    - [X] movies
+    - [X] jpegs
+- [X] marth
+  - [X] images
+    - [X] movies
+    - [X] jpegs
+  - [X] hist
+    - [X] movies
+    - [X] jpegs
+  - [X] masks
+    - [X] movies
+    - [X] jpegs
+- [X] peach
+  - [X] images
+    - [X] movies
+    - [X] jpegs
+  - [X] hist
+    - [X] movies
+    - [X] jpegs
+  - [X] masks
+    - [X] movies
+    - [X] jpegs
+- [ ] samus
+  - [ ] images
+    - [ ] movies
+    - [ ] jpegs
+  - [ ] hist
+    - [ ] movies
+    - [ ] jpegs
+  - [ ] masks
+    - [ ] movies
+    - [ ] jpegs
+- [X] sheik
+  - [X] images
+    - [X] movies
+    - [X] jpegs
+  - [X] hist
+    - [X] movies
+    - [X] jpegs
+  - [X] masks
+    - [X] movies
+    - [X] jpegs
+
+*** TODO make the makefile error on bad python pipes
+ugh.  I think I have the python stuff set to not error if it can’t write to the pipe
+
+but I may be too general with that.  it should bubble up an error if, e.g., I forget to set up my virtual environment and it can’t import pandas
+
+though this may also be a problem with piping commands.  if the source errors but the target “succeeds” in writing nothing to a file … does the whole pipeline status come back 0 or 1?
+
+** Back to Keras
+:PROPERTIES:
+:header-args:jupyter+: :existing kernel-2a18454b-9ce1-4e66-8892-9732c46a2fe1.json
+:header-args:jupyter+: :ssh amazon-gpu
+:header-args:jupyter+: :session smash-remote
+:END:
+
+#+CALL: setup_libraries()
+
+#+RESULTS:
+
+*** Classification
+Fuck, these models are a bitch to work with.  I’m sorta starting to understand the joys of docker, because I keep hitting all these god awful snags trying to manage versions between ubuntu, Mac, etc.
+
+Also, I lost some of my goddamn data.  Wtf.  No Sheik, no Falcon, and obvi no Samus.
+
+I have no clue what happened, but I’ll go back and remake that tonight.  Ugh.
+
+So, let’s just build a real simple classifier, for now.  First pass, we gotta be able to classify these images.
+
+#+NAME: model_prep
+#+BEGIN_SRC jupyter
+  import os
+
+  DATADIR = "data/keras"
+  NUM_CHARACTERS = len(os.listdir(os.path.join(DATADIR, "train", "images")))
+#+END_SRC
+
+#+NAME: set_categorical_model
+#+BEGIN_SRC jupyter
+  from keras.applications.vgg16 import VGG16
+  from keras.layers import Dense, Input, Flatten
+  from keras.layers.normalization import BatchNormalization
+  from keras.models import Model
+  from keras.optimizers import Adam
+
+  # Image processing
+  IMAGE_ROW_SIZE = 584
+  IMAGE_COLUMN_SIZE = 480
+
+  def init_model(target_num=4, dropout_ratio=0.5, learning_rate=0.0001):
+      input_shape = (IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE, 3)
+
+      # Fine-tune prediction layer
+      pretrained_model = VGG16(include_top=False, weights='imagenet',
+                               input_shape=input_shape)
+      for layer in pretrained_model.layers:
+          layer.trainable = False
+
+      output_tensor = pretrained_model.output
+      output_tensor = Flatten()(output_tensor)
+      # output_tensor = Dense(4096, activation='relu')(output_tensor)
+      # output_tensor = Dense(4096, activation='relu')(output_tensor)
+      output_tensor = Dense(target_num, activation="softmax", name="predictions")(output_tensor)
+
+      # Define and compile the model
+      model = Model(inputs=pretrained_model.input, outputs=output_tensor)
+      model.compile(optimizer=Adam(lr=learning_rate),
+                    loss="categorical_crossentropy",
+                    metrics=["accuracy"])
+
+      return model
+
+  model = init_model(target_num=NUM_CHARACTERS)
+#+END_SRC
+
+#+RESULTS: set_categorical_model
+
+#+BEGIN_SRC jupyter
+  from keras.preprocessing.image import ImageDataGenerator
+
+  def make_generator(folder="train",
+                     data_gen_args={"fill_mode": "constant",
+                                    "cval": 0,
+                                    "width_shift_range": 0.05,
+                                    "height_shift_range": 0.05,
+                                    "zoom_range": 0.1,
+                                    "horizontal_flip": True,
+                                    "rescale": 1.0 / 255},
+                     data_flow_args={"seed": 1,
+                                     "batch_size": 32}):
+
+      image_datagen = ImageDataGenerator(**data_gen_args)
+
+      image_generator = image_datagen.flow_from_directory(
+          directory=os.path.join(DATADIR, folder, "images"),
+          target_size=(IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE),
+          color_mode='rgb',
+          ,**data_flow_args)
+
+      return image_generator
+
+  def steps_per_epoch(folder="train", batch_size=32):
+      image_directory = os.path.join(DATADIR, folder, "images")
+      char_name = os.listdir(image_directory)[0]
+      char_directory = os.path.join(image_directory, char_name)
+      data_size = len(os.listdir(char_directory))
+      data_size *= NUM_CHARACTERS
+      return data_size // batch_size
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter :results output
+model.summary()
+#+END_SRC
+
+#+RESULTS:
+#+begin_example
+_________________________________________________________________
+Layer (type)                 Output Shape              Param #   
+=================================================================
+input_1 (InputLayer)         (None, 584, 480, 3)       0         
+_________________________________________________________________
+block1_conv1 (Conv2D)        (None, 584, 480, 64)      1792      
+_________________________________________________________________
+block1_conv2 (Conv2D)        (None, 584, 480, 64)      36928     
+_________________________________________________________________
+block1_pool (MaxPooling2D)   (None, 292, 240, 64)      0         
+_________________________________________________________________
+block2_conv1 (Conv2D)        (None, 292, 240, 128)     73856     
+_________________________________________________________________
+block2_conv2 (Conv2D)        (None, 292, 240, 128)     147584    
+_________________________________________________________________
+block2_pool (MaxPooling2D)   (None, 146, 120, 128)     0         
+_________________________________________________________________
+block3_conv1 (Conv2D)        (None, 146, 120, 256)     295168    
+_________________________________________________________________
+block3_conv2 (Conv2D)        (None, 146, 120, 256)     590080    
+_________________________________________________________________
+block3_conv3 (Conv2D)        (None, 146, 120, 256)     590080    
+_________________________________________________________________
+block3_pool (MaxPooling2D)   (None, 73, 60, 256)       0         
+_________________________________________________________________
+block4_conv1 (Conv2D)        (None, 73, 60, 512)       1180160   
+_________________________________________________________________
+block4_conv2 (Conv2D)        (None, 73, 60, 512)       2359808   
+_________________________________________________________________
+block4_conv3 (Conv2D)        (None, 73, 60, 512)       2359808   
+_________________________________________________________________
+block4_pool (MaxPooling2D)   (None, 36, 30, 512)       0         
+_________________________________________________________________
+block5_conv1 (Conv2D)        (None, 36, 30, 512)       2359808   
+_________________________________________________________________
+block5_conv2 (Conv2D)        (None, 36, 30, 512)       2359808   
+_________________________________________________________________
+block5_conv3 (Conv2D)        (None, 36, 30, 512)       2359808   
+_________________________________________________________________
+block5_pool (MaxPooling2D)   (None, 18, 15, 512)       0         
+_________________________________________________________________
+flatten_1 (Flatten)          (None, 138240)            0         
+_________________________________________________________________
+predictions (Dense)          (None, 5)                 691205    
+=================================================================
+Total params: 15,405,893
+Trainable params: 691,205
+Non-trainable params: 14,714,688
+_________________________________________________________________
+#+end_example
+
+I found this code from the Deep Lizard keras tutorial, and it is ugly as sin.  Oh well, kinda helpful to me now.
+
+#+BEGIN_SRC jupyter
+  def plot_images(images, figsize=(12, 6), rows=1, interp=False, titles=None):
+      if type(images[0]) is np.ndarray:
+          images = np.array(images).astype(np.uint8)
+      fig = plt.figure(figsize=figsize)
+      cols = len(images) // rows if len(images) % rows == 0 else len(images) // rows + 1
+      for i, image in enumerate(images):
+          sp = fig.add_subplot(rows, cols, i + 1)
+          sp.axis('Off')
+          if titles is not None:
+              sp.set_title(titles[i], fontsize=16)
+          sp.imshow(image, interpolation=None if interp else 'none')
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter
+  def make_test_generator(folder="test",
+                          data_flow_args={"seed": 1,
+                                          "batch_size": 32}):
+
+      return ImageDataGenerator().flow_from_directory(
+          directory=os.path.join(DATADIR, folder, "images"),
+          target_size=(IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE),
+          color_mode='rgb',
+          ,**data_flow_args)
+#+END_SRC
+
+#+RESULTS:
+
+The Deep Lizard keras tutorials do contain a lot of good info.  Like this tidbit about class indices (even though I need the reverse dictionary).
+
+#+BEGIN_SRC jupyter
+  test_batches = make_test_generator(data_flow_args={"batch_size": 3})
+  class_dict = test_batches.class_indices
+  index_dict = {i: c for c, i in class_dict.items()}
+#+END_SRC
+
+#+RESULTS:
+
+Huzzah!  Look what I can plot!
+
+#+BEGIN_SRC jupyter :results file
+  images, vectors = next(test_batches)
+  labels = [index_dict[np.argmax(v)] for v in vectors]
+  plot_images(images, titles=labels)
+#+END_SRC
+
+#+RESULTS:
+[[file:./jupyter_images/150705G.png]]
+
+But this is the really cool shit.
+
+#+BEGIN_SRC jupyter :results dataframe
+  images, vectors = next(test_batches)
+  true_labels = [index_dict[i] for i in vectors.argmax(1)]
+  predictions = model.predict_on_batch(images)
+  pred_labels = [index_dict[i] for i in predictions.argmax(1)]
+
+  pd.DataFrame({'True': true_labels, 'Predicted': pred_labels})
+#+END_SRC
+
+#+BEGIN_SRC jupyter
+  def plot_confusion_matrix(matrix, classes,
+                            normalize=False,
+                            title='Confusion matrix',
+                            cmap=plt.cm.Blues):
+      """
+      This function prints and plots the confusion matrix.
+      Normalization can be applied by setting `normalize=True`.
+      """
+      if normalize:
+          matrix = matrix.astype('float') / matrix.sum(axis=1)[:, np.newaxis]
+
+      plt.imshow(matrix, interpolation='nearest', cmap=cmap)
+      plt.title(title)
+      plt.colorbar()
+      tick_marks = np.arange(len(classes))
+      plt.xticks(tick_marks, classes, rotation=45)
+      plt.yticks(tick_marks, classes)
+
+      fmt = '.2f' if normalize else 'd'
+      thresh = matrix.max() / 2.
+      for i, j in itertools.product(range(matrix.shape[0]), range(matrix.shape[1])):
+          plt.text(j, i, format(matrix[i, j], fmt),
+                   horizontalalignment="center",
+                   color="white" if matrix[i, j] > thresh else "black")
+
+      plt.tight_layout()
+      plt.ylabel('True label')
+      plt.xlabel('Predicted label')
+#+END_SRC
+
+*** Lessons Learned
+I still think it’s so fucking cool that I can fire up a notebook on Amazon and (with, admittedly, a non-trivial amount of work) connect to it from here.  It’s definitely nice being able to play with the repl and the code buffers here, then click over to the browser to kick off really long-running training code.
+
+Speaking of … training still takes *forever*.  Maybe it’s because I’m still a cheapskate using p2.xlarge.  I suppose I could splurge on a g2.8xlarge sometime and see how much that helps.  Because, here’s the thing, if it takes more than a minute or two to train then this iterative process is going to *suck*.  I can feel it already.
+
+I’m not sure what an ideal epoch size is, but the internet makes me feel that each epoch should run over all my data.  I can’t do that on puny p2, I get a =ResourceExhaustedError= from tensorflow.  I’m still getting decent results from training with short epochs (got up to ~80% accuracy with no hidden layers, currently training one hidden layer to see what’s what).  But I can’t really experiment playfully and see what pops out.
+
+Also, yeah, I have no clue what’s up with hidden layers.  Tried with none, now trying with one small one.  The dense hidden layer on top of VGG adds *so many* trainable variables, but actually, it’s not seeming to slow down my training.  I don’t quite get that.  Will have to play more with more hidden layers / wider hidden layers to see if it messes with things.  Again, gotta go fast, then start going complex.
+
+Side note: I’m really cheesed to just now realize I can probably turn off all the bullshit stage nonsense, like Story’s shy guys, Fountain’s fountains, etc.  I don’t *think* it’s worth rerunning all those character videos, but if I ever get around to it, maybe.
+
+--------------------------------------------------------------------------------
+
+Now that the hidden layer model has finished, I plotted the confusion matrix.  
+
+I could spend some time staring at the values and trying to puzzle out just why, say, fox is often mistaken for peach.  But honestly, I’m guessing it’s because there are plenty of images where the characters are dead.  So plenty of fox images of just a blank background, and plenty of peach images of just a blank background.
+
+Would it be worth it to update the process_masks script to skip over images that are probably blanks?  I can see that.
+
+Not today, though.  Today I’m happy.
+
+** Detour to Filter Masks
+
+*** Exploratory Code
+Note to self: =C-c C-v C-s= calls ~org-babel-execute-subtree~
+
+#+CALL: setup_libraries()
+
+#+RESULTS:
+
+#+HEADER: :var stem="fox_1_fountain_left_bg_off_111"
+#+BEGIN_SRC jupyter :results file
+  img_name = f"data/masks/{stem}.jpg"
+  mask_name = f"data/masks/{stem}_mask.jpg"
+  img = cv2.imread(img_name)
+  img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+  mask = cv2.imread(mask_name)
+  mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+  fig, (ax1, ax2) = plt.subplots(1, 2)
+  ax1.imshow(img)
+  ax2.imshow(mask, cmap='gray')
+#+END_SRC
+
+#+RESULTS:
+[[file:./jupyter_images/1507tvf.png]]
+
+#+BEGIN_SRC jupyter   
+  non_zero = 1
+  int8_max = 255
+  _, thresh_img = cv2.threshold(mask, non_zero, int8_max, cv2.THRESH_BINARY)
+  _, contours, _ = cv2.findContours(thresh_img, cv2.RETR_EXTERNAL,
+                                    cv2.CHAIN_APPROX_SIMPLE)
+  contours = sorted(contours, key=cv2.contourArea, reverse=True)
+  len(contours)
+#+END_SRC
+
+#+RESULTS:
+: 130
+
+#+BEGIN_SRC jupyter 
+  [cv2.contourArea(c) for c in contours][:5]
+#+END_SRC
+
+#+RESULTS:
+| 23387.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+
+#+BEGIN_SRC jupyter 
+  if contours:
+      big_contour = contours[0]
+      x, y, w, h = cv2.boundingRect(big_contour)
+      bbox_area = w * h
+      cont_area = cv2.contourArea(big_contour)
+  else:
+      x, y, w, h = 0, 0, 0, 0
+      bbox_area = 0
+      cont_area = 0
+
+  x, y, w, h
+#+END_SRC
+
+#+RESULTS:
+| 203 | 0 | 122 | 480 |
+
+#+BEGIN_SRC jupyter :results file
+  mask_w_box = cv2.rectangle(mask.copy(), (x, y), (x + w, y + h), 255, 3)
+  plt.imshow(mask_w_box, cmap='gray')
+#+END_SRC
+
+#+RESULTS:
+[[file:./jupyter_images/1507HEs.png]]
+
+#+BEGIN_SRC jupyter 
+  total_area = mask.shape[0] * mask.shape[1]
+
+  (bbox_area / total_area, cont_area / total_area)
+#+END_SRC
+
+#+RESULTS:
+| 0.2089041095890411 | 0.08342965182648401 |
+
+*** Lessons Learned
+We can filter out a lot of garbage by looking for contour areas in the 1% to 7% range.  I dunno about that upper bound, but the lower bound looks good based on Fox.  God dammit I should probably check it for puff too.  Ugh.
+
+Sunova.  I was thinking of using other heuristics, like filtering out stuff that was too wide or too tall.  But what about crouching puff?  Samus uair?  
+
+Better to throw out more data and get better training?  Or keep more data?  Ugh, tradeoffs, just pick something and move on.
+
+And, of course, you could always MTurk it.  In a real context that’s probably what you’d do.  Is it?  ~ 21600 images?  Even at one image per second that’s 6 hours of work.  Okay, not that bad.  How much work are you putting into this code?  It’s a terrible 6 hours, of course, but meh.  If you split it across a few folks, a few days.  
+
+Hmm, but if it takes a few days anyway, then is it really 6 hours of work?  If two people take all day to do it, then it’s two person-days.  TBH that feels like a better estimate.
+
+Yeah, let’s just throw some very tight filtering bounds on there, throw away a lot of data, and move on.
+
+** Back to Keras
+:PROPERTIES:
+:header-args:jupyter+: :existing kernel-f38a1b5f-4fc1-497c-9e1f-4973c4e50a54.json
+:header-args:jupyter+: :ssh amazon-gpu
+:header-args:jupyter+: :session smash-remote
+:END:
+
+#+NAME: get_remote_kernel_json
+#+BEGIN_SRC shell :dir /ssh:amazon-gpu:
+  find /run/user/1000/jupyter -name 'kernel*'
+#+END_SRC
+
+#+RESULTS: get_remote_kernel_json
+: /run/user/1000/jupyter/kernel-f38a1b5f-4fc1-497c-9e1f-4973c4e50a54.json
+
+#+HEADER: :var remote_file=get_remote_kernel_json
+#+HEADER: :var remote="amazon-gpu"
+#+BEGIN_SRC shell 
+  scp "${remote}:${remote_file}" ~/Library/Jupyter/runtime/$(basename "${remote_file}")
+  find ~/Library/Jupyter/runtime -name 'kernel*' -execdir basename -a {} +
+#+END_SRC
+
+#+RESULTS:
+| kernel-2a18454b-9ce1-4e66-8892-9732c46a2fe1.json |
+| kernel-36b8c574-3dbd-48ac-a423-3540436ecf7b.json |
+| kernel-9a8479c8-50f9-44d2-a32a-a4a7da424c50.json |
+| kernel-f38a1b5f-4fc1-497c-9e1f-4973c4e50a54.json |
+
+#+BEGIN_SRC jupyter 
+  "trivial setup complete"
+#+END_SRC
+
+#+RESULTS:
+: trivial setup complete
+
+*** Classification Again
+The code from above is saved in [[file:smash.ipynb][smash.ipynb]] so I’ll just run it from there.  Use this space to do ad-hoc investigation from Emacs.  Probably mainly images.
+
+--------------------------------------------------------------------------------
+
+So I’ve been running a lot of models, let’s list them out:
+
+#+BEGIN_SRC shell
+  find data/keras -name '*h5'
+#+END_SRC
+
+#+RESULTS:
+| data/keras/2018-05-02-long-epochs-2-hidden-layers.h5 |
+| data/keras/2018-05-01-long-epochs-1-hidden-layer.h5  |
+
+*** Lessons Learned
+I’m not sure if long or short epochs make a difference in training accuracy, but let’s do long epochs out of respect to intent.  (“short” epochs only ranged over maybe one sixth the data, while “long” epochs try to cover roughly the whole data set)
+
+Two hidden layers perform *way* better than one.  Well at least …
+
+Preprocessing the images made a *huge* difference.  And [[http://theorangeduck.com/page/neural-network-not-working?imm_mid=0f6562&cmp=em-data-na-na-newsltr_20170920][this blog]] reminds that, yeah, it’s a total rookie mistake not to normalize data somehow.  Turns out, VGG16 does a non-standard thing where it centers images around some arbitrary point and doesn’t shrink them down to standard deviation one.  Fortunately Keras includes a VGG16-specific preprocessing function, so yay!
+
+I may want to go back and check what happens with preprocessing and just 1 hidden layer.  I’ll expect it to be worse than with 2, but we’ll see.
+
+The blog recommends I should play with learning rate (make it bigger) and “regularization” a/k/a dropout a/k/a inserting some randomness.  
+
