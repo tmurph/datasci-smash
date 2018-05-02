@@ -9,7 +9,7 @@ while [ "$#" -gt 1 ]
 do
     suffix="$1"
     percentage="$2"
-    next_linum=$(expr "$line_count" \* "$percentage" / 100)
+    next_linum=$(expr "$prev_linum" + "$line_count" \* "$percentage" / 100)
     shift
     shift
 
