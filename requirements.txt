@@ -12,6 +12,6 @@ pydot
 graphviz
 pillow
 dtm2text
-opencv-python
+opencv-python==3.3.0.10
 awscli
 nbdime
