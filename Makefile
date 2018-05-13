@@ -310,8 +310,6 @@ keras_masks := $(addprefix $(KERASDIR)/,\
 		 $(addsuffix _filtered_mask_list,\
 		   $(mask_stems)))
 
-.INTERMEDIATE : $(keras_masks)
-
 $(KERASDIR)/%_filtered_mask_list : $(SCRIPTDIR)/filter_masks.py \
 				   $(MASKDIR)/%_mask_list
 	$(PYTHON) $< @$(word 2,$^) >$@
