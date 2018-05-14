@@ -353,7 +353,7 @@ $(keras_folder_lists) : $(KERASDIR)/folder_lists_done
 	touch $@
 
 $(KERASDIR)/shuffled_image_mask_list_chars_% : $(KERASDIR)/shuffled_image_mask_list_%
-	cat $< | cut -d' ' -f1 | cut -d/ -f7 | cut -d_ -f1 | sort -u >$@
+	cat $< | cut -d' ' -f1 | xargs basename -a | cut -d_ -f1 | sort -u >$@
 
 $(KERASDIR)/%_done : $(KERASDIR)/shuffled_image_mask_list_% \
 		     $(KERASDIR)/shuffled_image_mask_list_chars_%
