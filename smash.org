@@ -37,13 +37,13 @@ this is the only thing that stops me from running make with just a bajillion cor
 * Setup
 
 ** AWS Ubuntu
-This comes in three parts, because we have to drop back home in the middle.
+This comes in four parts, because we have to drop back home in the middle.
 
 Update the property values when the target remote changes.
 
 *** Quick remote setup
 :PROPERTIES:
-:header-args:shell: :dir /ssh:amazon-gpu:
+:header-args:shell: :dir /ssh:amazon-west:
 :END:
 
 #+BEGIN_SRC shell
@@ -55,7 +55,7 @@ Update the property values when the target remote changes.
 
 *** Quick local push
 :PROPERTIES:
-:header-args:shell: :var remote="amazon-gpu"
+:header-args:shell: :var remote="amazon-west"
 :END:
 
 #+BEGIN_SRC shell
@@ -70,20 +70,19 @@ Update the property values when the target remote changes.
 
 *** Final remote setup
 :PROPERTIES:
-:header-args:shell: :dir /ssh:amazon-gpu:
+:header-args:shell: :dir /ssh:amazon-west:
 :END:
 
-#+BEGIN_SRC shell
+#+BEGIN_SRC shell :results silent
   chmod +x ~/bin/ec
 
-  sudo add-apt-repository ppa:dolphin-emu/ppa -y
-  sudo apt update
+  sudo add-apt-repository ppa:dolphin-emu/ppa -y >/dev/null
+  sudo apt update >/dev/null
 
   git clone https://github.com/tmurph/datasci-smash
   cd datasci-smash
-  xargs -a ubuntu-packages.txt sudo apt install -y
-  pip3 install -r requirements.txt --user
-  sudo X :0 &
+  xargs -a ubuntu-packages.txt sudo apt install -y >/dev/null
+  pip3 install -r requirements.txt --user >/dev/null
 #+END_SRC
 
 #+RESULTS:
@@ -91,7 +90,7 @@ Update the property values when the target remote changes.
 then this is for convenience
 
 #+BEGIN_SRC shell :results silent
-  sudo apt install emacs24-nox -y
+  sudo apt install emacs24-nox -y >/dev/null
 
   cd ~
   rm -rf datasci-smash
@@ -99,7 +98,12 @@ then this is for convenience
   echo 'github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==' >>~/.ssh/known_hosts 
   git clone git@github.com:tmurph/datasci-smash.git
 
-  cat >.bash_profile <<EOF
+  cd datasci-smash
+  git config filter.clean_ipynb.clean scripts/ipynb_drop_output.py
+  git config filter.clean_ipynb.smudge cat
+  git config branch.master.rebase true
+
+  cat >~/.bash_profile <<EOF
   export EDITOR="$HOME/bin/ec"
   export PATH="$HOME/bin:$HOME/.local/bin:$PATH"
   export DISPLAY=:0
@@ -122,7 +126,7 @@ and this is to work around copyright stuff
 
 *** Setup data
 :PROPERTIES:
-:header-args:shell: :dir /ssh:amazon-gpu:datasci-smash
+:header-args:shell: :dir /ssh:amazon-west:datasci-smash
 :END:
 
 #+BEGIN_SRC shell :results silent
@@ -133,14 +137,22 @@ and this is to work around copyright stuff
 
 This download can take forever.
 
-#+BEGIN_SRC shell
+#+BEGIN_SRC shell :eval never
   aws s3 sync s3://datasci-smash/images data/images --exclude='*' --include='*jpg' &
   aws s3 sync s3://datasci-smash/masks data/masks --exclude='*' --include='*mask.jpg' &
 #+END_SRC
 
 #+RESULTS:
 
-** Notebook Imports
+We can also do this faster version.
+
+#+BEGIN_SRC shell
+  cd ~/datasci-smash && aws s3 cp s3://datasci-smash/jpg-data.tar.gz - | tar -xzf - && find data -name '*jpg' -execdir touch {} +
+#+END_SRC
+
+#+RESULTS:
+
+** Notebook LOB
 
 #+NAME: setup_libraries
 #+BEGIN_SRC jupyter
@@ -161,6 +173,51 @@ This download can take forever.
 #+RESULTS: setup_libraries
 
 #+RESULTS:
+
+** Remote Notebook Setup
+:PROPERTIES:
+:header-args:jupyter+: :existing kernel-930257cb-ef69-4b9c-8a83-b1efd9f7e985.json
+:header-args:jupyter+: :ssh amazon
+:header-args:jupyter+: :session smash-remote
+:END:
+
+#+NAME: get_remote_kernel_name
+#+HEADER: :var remote="amazon"
+#+BEGIN_SRC shell
+  ssh "${remote}" 'find /run/user/1000/jupyter -name kernel\* -execdir basename -a {} +'
+#+END_SRC
+
+#+RESULTS: get_remote_kernel_name
+: kernel-930257cb-ef69-4b9c-8a83-b1efd9f7e985.json
+
+#+NAME: get_remote_kernel_json
+#+HEADER: :var remote="amazon"
+#+BEGIN_SRC shell
+  ssh "${remote}" 'find /run/user/1000/jupyter -name kernel\*'
+#+END_SRC
+
+#+RESULTS: get_remote_kernel_json
+: /run/user/1000/jupyter/kernel-930257cb-ef69-4b9c-8a83-b1efd9f7e985.json
+
+#+NAME: copy_remote_kernel_json
+#+HEADER: :var remote_file=get_remote_kernel_json(remote="amazon")
+#+HEADER: :var remote="amazon"
+#+BEGIN_SRC shell 
+  scp "${remote}:${remote_file}" ~/Library/Jupyter/runtime/$(basename "${remote_file}")
+  find ~/Library/Jupyter/runtime -name 'kernel*' -execdir basename -a {} +
+#+END_SRC
+
+#+RESULTS: copy_remote_kernel_json
+| kernel-930257cb-ef69-4b9c-8a83-b1efd9f7e985.json |
+| kernel-9e3bbebe-fa1c-4ab5-b1ed-857b240cd8d7.json |
+| kernel-bcc7f36c-117a-4af3-9c4e-b4051f4fabab.json |
+
+#+BEGIN_SRC jupyter 
+"trivial setup complete"
+#+END_SRC
+
+#+RESULTS:
+: trivial setup complete
 
 * One Image Prototype
 ** Prior Art
@@ -2238,3 +2295,520 @@ Oh wow.  So I found a bug in my train / test / valid splitting code.  Rerunning 
 Also it seems I’ve topped out on playing with some of the suggestions from that blog.  I can’t really get beyond 75% / 80% accuracy.  Could be too little data?  But it takes for fucking ever to run …
 
 Turns out!  It’s because I’m rerunning VGG every time, and even with a beefy GPU that’s expensive.  There’s a great [[https://blog.keras.io/building-powerful-image-classification-models-using-very-little-data.html][keras blog post]] though that lays out a good strategy … run VGG once to extract features, then just train a tiny network on that.  I can’t use data augmentation … but I could make up for that by tweaking dropout and using all my images.  Neat!
+
+*** New Classification Approach
+:PROPERTIES:
+:header-args:jupyter+: :existing kernel-9e3bbebe-fa1c-4ab5-b1ed-857b240cd8d7.json
+:header-args:jupyter+: :ssh amazon
+:header-args:jupyter+: :session smash-remote
+:END:
+
+#+CALL: get_remote_kernel_name(remote="amazon")
+
+#+RESULTS:
+: kernel-9e3bbebe-fa1c-4ab5-b1ed-857b240cd8d7.json
+
+Let’s use this space to prototype a new VGG setup that runs the model once to cache features, then allows me to train tiny nets on that.
+
+#+BEGIN_SRC jupyter 
+  from keras.applications.vgg16 import VGG16
+
+  model = VGG16(include_top=False, weights="imagenet")
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter
+  image_count_train = count_images("train")
+  generator_train = make_generator(
+      "train",
+      data_gen_args={"preprocessing_function": preprocess_input},
+      data_flow_args={"batch_size": 1,
+                      "class_mode": None,
+                      "shuffle": False})
+  generator_train_labels = make_generator(
+      "train",
+      data_gen_args={},
+      data_flow_args={"batch_size": BATCH_SIZE,
+                      "shuffle": False})
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter 
+  labels_train = []
+  i = 0
+  for _, labels in generator_train_labels:
+      if i >= image_count_train:
+          break
+      else:
+          labels_train.extend(labels)
+          i += BATCH_SIZE
+  labels_train = np.array(labels_train[:image_count_train])
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter 
+  bottleneck_features_train = model.predict_generator(generator_train,
+                                                      image_count_train)
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter 
+  with open(os.path.join(DATA_DIR, 'bottleneck_features_train.npy'), 'bw') as train:
+      np.save(train, bottleneck_features_train)
+  with open(os.path.join(DATA_DIR, 'bottleneck_feature_labels_train.npy'), 'bw') as train:
+      np.save(train, labels_train)
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter 
+  image_count_valid = count_images("valid")
+  generator_valid = make_generator(
+      "valid",
+      data_gen_args={"preprocessing_function": preprocess_input},
+      data_flow_args={"batch_size": 1,
+                      "class_mode": None,
+                      "shuffle": False})
+  generator_valid_labels = make_generator(
+      "valid",
+      data_gen_args={},
+      data_flow_args={"batch_size": BATCH_SIZE,
+                      "shuffle": False})
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter 
+  labels_valid = []
+  for i, (_, labels) in enumerate(generator_valid_labels):
+      if i >= image_count_valid:
+          break
+      else:
+          labels_valid.extend(labels)
+  labels_valid = np.array(labels_valid[:image_count_valid])
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter 
+  bottleneck_features_valid = model.predict_generator(generator_valid,
+                                                      image_count_valid)
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter 
+  with open(os.path.join(DATA_DIR, 'bottleneck_features_valid.npy'), 'bw') as valid:
+      np.save(valid, bottleneck_features_valid)
+
+  with open(os.path.join(DATA_DIR, 'bottleneck_feature_labels_valid.npy'), 'bw') as valid:
+      np.save(valid, labels_valid)
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter 
+  image_count_test = count_images("test")
+  image_count_test_generator_cutoff = image_count_test / BIG_BATCH_SIZE + 1
+
+  generator_test = make_generator(
+      "test",
+      data_gen_args={"preprocessing_function": preprocess_input},
+      data_flow_args={"batch_size": BIG_BATCH_SIZE,
+                      "class_mode": None,
+                      "shuffle": False})
+  generator_test_labels = make_generator(
+      "test",
+      data_gen_args={},
+      data_flow_args={"batch_size": BIG_BATCH_SIZE,
+                      "shuffle": False})
+
+  labels_test = []
+  for i, (_, labels) in enumerate(generator_test_labels):
+      if i >= image_count_test_generator_cutoff:
+          break
+      else:
+          labels_test.extend(labels)
+  labels_test = np.array(labels_test[:image_count_test])
+
+  bottleneck_features_test = model.predict_generator(generator_test,
+                                                     image_count_test_generator_cutoff)
+  bottleneck_features_test = bottleneck_features_test[:image_count_test]
+
+  np.savez_compressed(os.path.join(DATADIR, 'bottleneck_features_test'), bottleneck_features_test)
+  np.savez_compressed(os.path.join(DATADIR, 'bottleneck_feature_labels_test'), labels_test)
+#+END_SRC
+
+#+BEGIN_SRC jupyter 
+  train_data = np.load(os.path.join(DATADIR, 'bottleneck_features_train.npz'))
+  train_data = train_data['arr_0']
+
+  train_labels = np.load(os.path.join(DATADIR, 'bottleneck_feature_labels_train.npz'))
+  train_labels = train_labels['arr_0']
+
+  valid_data = np.load(os.path.join(DATADIR, 'bottleneck_features_valid.npz'))
+  valid_data = valid_data['arr_0']
+
+  valid_labels = np.load(os.path.join(DATADIR, 'bottleneck_feature_labels_valid.npz'))
+  valid_labels = valid_labels['arr_0']
+
+  test_data = np.load(os.path.join(DATADIR, 'bottleneck_features_test.npz'))
+  test_data = test_data['arr_0']
+
+  test_labels = np.load(os.path.join(DATADIR, 'bottleneck_feature_labels_test.npz'))
+  test_labels = test_labels['arr_0']
+#+END_SRC
+
+#+BEGIN_SRC jupyter
+  from keras.models import Sequential
+  from keras.optimizers import Adam
+  from keras.layers import Dropout, Flatten, Dense
+
+  def init_model(input_shape, target_num=NUM_CHARACTERS,
+                 learning_rate=LEARNING_RATE):
+      model = Sequential()
+      model.add(Flatten(input_shape=input_shape))
+      model.add(Dense(256, activation='relu', kernel_initializer='lecun_uniform'))
+      model.add(Dropout(0.5))
+      model.add(Dense(target_num, activation='softmax'))
+
+      model.compile(optimizer=Adam(lr=learning_rate),
+                  loss='categorical_crossentropy',
+                  metrics=['accuracy'])
+      return model
+#+END_SRC
+
+#+BEGIN_SRC jupyter 
+  model = init_model(train_data.shape[1:])
+#+END_SRC
+
+#+BEGIN_SRC jupyter 
+  model.fit(train_data, train_labels,
+            epochs=50,
+            batch_size=BATCH_SIZE,
+            validation_data=(valid_data, valid_labels))
+#+END_SRC
+
+*** Lessons Learned
+Ugh, well … for whatever reason I can’t make the damn thing learn from this approach.  Maybe I don’t have enough data in my classes?  That doesn’t make sense, though.  Maybe my learning rate is too high?  I think I remember that happened with the full model.
+
+--------------------------------------------------------------------------------
+
+Okay, I dropped the learning rate down and it’s learning now.  But it never gets past around 70% accuracy, plus or minus 5.  Past that point it just starts overfitting, in fact the validation loss gets constant for some reason.
+
+I tried adding more hidden layers, that did nothing.  I remember the advice that yeah, that never solves the fundamental problem.  So now I’ve widened out the one layer (128 to 256) to try to capture enough features (I think that’s what this does?)  We’ll see how that goes.  It doesn’t learn as quickly, the loss started high and isn’t dropping nearly as fast … but maybe this one will get higher accuracy in the end?
+
+If not, maybe I just need more data.  Ugh.
+
+--------------------------------------------------------------------------------
+
+So I’m trying smaller hidden layers with dropout in between.  Near as I can tell that just slows down the learning rate.  Ugh.
+
+I get the sense that that’s a tradeoff with most regularization techniques, be it dropout or batch norm.  It slows down learning (though you’re supposed to increase the learning rate to compensate, I guess).
+
+Okay, yeah, let’s just get more data.
+
+*** Train Tiny Net on my Laptop
+This is the goal of all that expensive work I did on the beefy Amazon machine.  I cached the results of VGG16 feature extraction so that I could (fingers crossed) train a tiny FC network on my laptop.  Let’s try it.
+
+--------------------------------------------------------------------------------
+
+nope, that doesn’t work.  still too much data to train on my laptop, it takes over 10 min per epoch.
+
+but I can rent out a cheapo Amazon ec2 (p2.xlarge for ~0.30 / hr) and get it to around 90s per epoch, so that’s a win
+
+*** Train Tiny Net on Amazon
+:PROPERTIES:
+:header-args:jupyter+: :existing kernel-28d1e7fe-a35d-44d5-95a6-7d98eb62b071.json
+:header-args:jupyter+: :ssh amazon-west
+:header-args:jupyter+: :session smash-remote
+:END:
+
+#+CALL: get_remote_kernel_name(remote="amazon-west")
+
+#+RESULTS:
+: kernel-28d1e7fe-a35d-44d5-95a6-7d98eb62b071.json
+
+#+CALL: get_remote_kernel_json(remote="amazon-west")
+
+#+RESULTS:
+: /run/user/1000/jupyter/kernel-28d1e7fe-a35d-44d5-95a6-7d98eb62b071.json
+
+#+CALL: copy_remote_kernel_json(remote_file="/run/user/1000/jupyter/kernel-28d1e7fe-a35d-44d5-95a6-7d98eb62b071.json", remote="amazon-west")
+
+#+RESULTS:
+| kernel-28d1e7fe-a35d-44d5-95a6-7d98eb62b071.json |
+| kernel-930257cb-ef69-4b9c-8a83-b1efd9f7e985.json |
+| kernel-9e3bbebe-fa1c-4ab5-b1ed-857b240cd8d7.json |
+| kernel-bcc7f36c-117a-4af3-9c4e-b4051f4fabab.json |
+
+#+BEGIN_SRC jupyter 
+"trivial setup complete"
+#+END_SRC
+
+#+RESULTS:
+: trivial setup complete
+
+Except god dammit.  I trained the model for a bazillion epochs, and it could only get up to 50% accuracy.  What the hell?
+
+It’s seriously looking like the only way for me to get good results is to train the full model on all my data.  Let’s look into that expensive ec2 again.
+
+*** Train Big Model on Amazon
+:PROPERTIES:
+:header-args:jupyter+: :existing kernel-e998e99b-a28a-45e2-957b-20397a6b678c.json
+:header-args:jupyter+: :ssh amazon-west
+:header-args:jupyter+: :session smash-remote
+:END:
+
+#+CALL: get_remote_kernel_json(remote="amazon-west")
+
+#+RESULTS:
+: /run/user/1000/jupyter/kernel-e998e99b-a28a-45e2-957b-20397a6b678c.json
+
+#+CALL: copy_remote_kernel_json(remote_file="/run/user/1000/jupyter/kernel-e998e99b-a28a-45e2-957b-20397a6b678c.json", remote="amazon-west")
+
+#+RESULTS:
+| kernel-28d1e7fe-a35d-44d5-95a6-7d98eb62b071.json |
+| kernel-930257cb-ef69-4b9c-8a83-b1efd9f7e985.json |
+| kernel-9e3bbebe-fa1c-4ab5-b1ed-857b240cd8d7.json |
+| kernel-b297ae86-4dd7-4306-ac76-40a58503bab8.json |
+| kernel-bcc7f36c-117a-4af3-9c4e-b4051f4fabab.json |
+| kernel-e998e99b-a28a-45e2-957b-20397a6b678c.json |
+
+#+BEGIN_SRC jupyter 
+  "trivial setup complete"
+#+END_SRC
+
+#+RESULTS:
+: trivial setup complete
+
+Well this is enlightening / embarassing.  I rented out the cheapo amazon (p2.xlarge) and I’m training the full model.  Buuuuut I’m using just the battlefield images.  Up to 80% accuracy after just four epochs.  I’m starting to think I should spin up more instances to check the other stages.  Presumably one of them just sucks?  Fountain?  Yoshi’s?
+
+And then maybe a thing to try is multiclass classification?  Like how [[https://www.pyimagesearch.com/2018/05/07/multi-label-classification-with-keras/][the master salesman]] does it?
+
+I’m a little frustrated cuz it seems my browser has lost the connection to the notebook output stream.  So I’m not getting real time updates anymore of progress.
+
+Looks like the epochs are down to 20 minutes, too.  I guess I’ll just try to check in every hour and see if it’s done yet.  I can check the stats afterward.
+
+--------------------------------------------------------------------------------
+
+Real interesting.  I started a parallel process to do just fountain, and it seems like it’s gonna suck.  Too early to call it, but that’s my initial impression.
+
+Annnnnd yeah, the battlefield ran to completion (I forgot to check the final epoch accuracy, but I’m hoping it was around 90%.  Almost certainly it was above 89%.  And I need to build the testing code tomorrow).  The fountain code never really got off the ground, though it did keep running forever.  Somehow it kept eeking out just the barest improvements on the validation loss metric … but it never really made big gains in either loss or accuracy.  I just killed it after like 35 epochs.
+
+New test is final and story.  I’m expecting final to do well, story to do poorly.  Check in the morning.
+
+--------------------------------------------------------------------------------
+
+Whelp, my prediction was super wrong.  Final doing well, story doing just as well.  Ugh.
+
+Time to try dreamland and stadium just to see if they also work well.  Wtf is wrong with fountain?  Is there something wrong with fountain?  Or did I just get unlucky that one time?
+
+It’s kinda interesting that dreamland is doing really well and stadium is doing just okay.  Stadium is getting better and better with no signs of slowing down, but its rate of improvement is way slower than dreamland, or final, or battlefield.  How much of this is randomness at work?  I just don’t know.
+
+--------------------------------------------------------------------------------
+
+Well now I’m trying again with mixing stages.  Dreamland, final, and battlefield (since those were the three that went quickly by themselves).  Let’s see if this trains at all?
+
+Yeah, looks like it’s gonna train well.
+
+*** Lessons Learned
+:PROPERTIES:
+:header-args:jupyter+: :existing 'nil
+:header-args:jupyter+: :ssh 'nil
+:header-args:jupyter+: :session smash
+:END:
+
+Even though my training accuracy would eventually get up above 80%, the validation accuracy never did.  And of course, with fountain it never did well at all.
+
+I could chalk fountain up to bad luck, but let’s assume not and instead investigate the images.  Some reason they are bad for training?  And if so … does fixing that cross apply to the other stages?
+
+#+BEGIN_SRC jupyter 
+"trivial setup complete"
+#+END_SRC
+
+#+RESULTS:
+: trivial setup complete
+
+Let’s just check out some random masks vs images and see what we see.
+
+#+CALL: setup_libraries()
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter 
+import os
+import re
+import random
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter
+  def keras_image_and_mask(character, color, stage, orientation,
+                                img_number):
+      "Create two side-by-side plots of a scenario."
+      data_dir = './data/keras/train/'
+      image = os.path.join(
+          data_dir, 'images', character,
+          f'{character}_{color}_{stage}_{orientation}_bg_on_{img_number}.jpg')
+      mask = os.path.join(
+          data_dir, 'masks', character,
+          f'{character}_{color}_{stage}_{orientation}_bg_off_{img_number}_mask.jpg')
+
+      bgr_image = cv2.imread(image)
+      rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
+      grey_mask = cv2.imread(mask)
+
+      return rgb_image, grey_mask
+#+END_SRC
+
+#+RESULTS:
+
+#+HEADER: :var character="falco"
+#+HEADER: :var color=3
+#+HEADER: :var stage="battlefield"
+#+HEADER: :var orientation="left"
+#+HEADER: :var img_number=185
+#+BEGIN_SRC jupyter :results file
+  rgb_image, grey_mask = keras_image_and_mask(character, color, stage,
+                                             orientation, img_number)
+  fig, (ax1, ax2) = plt.subplots(1, 2)
+  ax1.imshow(rgb_image)
+  ax2.imshow(grey_mask)
+#+END_SRC
+
+#+RESULTS:
+[[file:./jupyter_images/15075pd.png]]
+
+#+BEGIN_SRC jupyter
+  def list_all_images(directory="train"):
+      data_dir = './data/keras/'
+      image_dir = os.path.join(data_dir, directory, 'images')
+      all_images = []
+
+      for root, dirs, files in os.walk(image_dir):
+          all_images.extend(files)
+
+      return all_images
+#+END_SRC
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter 
+  all_images = list_all_images()
+  img_re = re.compile('(?:[^/]*/)*'
+                      '(?P<character>[^_]*)_'
+                      '(?P<color>[^_]*)_'
+                      '(?P<stage>[^_]*)_'
+                      '(?P<orientation>[^_]*)_'
+                      'bg_on_'
+                      '(?P<img_number>[0-9]{3})'
+                      '.jpg')
+#+END_SRC
+
+#+RESULTS:
+
+#+HEADER: :var num_samples=3
+#+BEGIN_SRC jupyter :results file
+  fig, axarr = plt.subplots(num_samples, 3, sharex=True, sharey=True,
+                            squeeze=False)
+
+  for i, image_name in enumerate(random.sample(all_images, num_samples)):
+      match = re.search(img_re, image_name)
+      rgb_image, grey_mask = keras_image_and_mask(**match.groupdict())
+      ax_left, ax_center, ax_right = axarr[i, 0], axarr[i, 1], axarr[i, 2]
+
+      ax_left.tick_params(axis='both', which='both', bottom='off',
+                              top='off', labelbottom='off', right='off',
+                              left='off', labelleft='off')
+      ax_left.imshow(rgb_image)
+      ax_center.tick_params(axis='both', which='both', bottom='off',
+                              top='off', labelbottom='off', right='off',
+                              left='off', labelleft='off')
+      ax_center.imshow(grey_mask)
+      ax_right.tick_params(axis='both', which='both', bottom='off',
+                              top='off', labelbottom='off', right='off',
+                              left='off', labelleft='off')
+      ax_right.text(0.5, 0.5, '\n'.join(match.groups()),
+                    horizontalalignment='center', verticalalignment='center',
+                    transform=ax_right.transAxes)
+
+  fig.tight_layout()
+#+END_SRC
+
+#+RESULTS:
+[[file:./jupyter_images/15071En.png]]
+
+Some things I’m seeing:
+ - falcon 1 (grey falcon) doesn’t get masked out very well
+ - but more importantly … fountain just has a lot of background noise
+   
+So I’m gonna guess that’s why fountain classification just sucks.  The background is so loud it can barely figure out what’s character and what’s not.  I wonder if the object segmentation task will be easier?
+
+At any rate, I’m guessing it’s the relative size of the objects that’s making classification kinda hard.  Maybe?  Certainly all the examples on the internet use really big well-cropped images.
+
+Let’s go back and try different models to see if we can get better classification results.
+
+*** Train Big Model on Amazon
+:PROPERTIES:
+:header-args:jupyter+: :existing kernel-e998e99b-a28a-45e2-957b-20397a6b678c.json
+:header-args:jupyter+: :ssh amazon-west
+:header-args:jupyter+: :session smash-remote
+:END:
+
+#+CALL: get_remote_kernel_json(remote="amazon-west")
+
+#+RESULTS:
+: /run/user/1000/jupyter/kernel-e998e99b-a28a-45e2-957b-20397a6b678c.json
+
+#+CALL: copy_remote_kernel_json(remote_file="/run/user/1000/jupyter/kernel-e998e99b-a28a-45e2-957b-20397a6b678c.json", remote="amazon-west")
+
+#+RESULTS:
+| kernel-28d1e7fe-a35d-44d5-95a6-7d98eb62b071.json |
+| kernel-930257cb-ef69-4b9c-8a83-b1efd9f7e985.json |
+| kernel-9e3bbebe-fa1c-4ab5-b1ed-857b240cd8d7.json |
+| kernel-b297ae86-4dd7-4306-ac76-40a58503bab8.json |
+| kernel-bcc7f36c-117a-4af3-9c4e-b4051f4fabab.json |
+| kernel-e998e99b-a28a-45e2-957b-20397a6b678c.json |
+
+#+BEGIN_SRC jupyter 
+  "trivial setup complete"
+#+END_SRC
+
+#+RESULTS:
+: trivial setup complete
+
+Well this is enlightening / embarassing.  I rented out the cheapo amazon (p2.xlarge) and I’m training the full model.  Buuuuut I’m using just the battlefield images.  Up to 80% accuracy after just four epochs.  I’m starting to think I should spin up more instances to check the other stages.  Presumably one of them just sucks?  Fountain?  Yoshi’s?
+
+And then maybe a thing to try is multiclass classification?  Like how [[https://www.pyimagesearch.com/2018/05/07/multi-label-classification-with-keras/][the master salesman]] does it?
+
+I’m a little frustrated cuz it seems my browser has lost the connection to the notebook output stream.  So I’m not getting real time updates anymore of progress.
+
+Looks like the epochs are down to 20 minutes, too.  I guess I’ll just try to check in every hour and see if it’s done yet.  I can check the stats afterward.
+
+--------------------------------------------------------------------------------
+
+Real interesting.  I started a parallel process to do just fountain, and it seems like it’s gonna suck.  Too early to call it, but that’s my initial impression.
+
+Annnnnd yeah, the battlefield ran to completion (I forgot to check the final epoch accuracy, but I’m hoping it was around 90%.  Almost certainly it was above 89%.  And I need to build the testing code tomorrow).  The fountain code never really got off the ground, though it did keep running forever.  Somehow it kept eeking out just the barest improvements on the validation loss metric … but it never really made big gains in either loss or accuracy.  I just killed it after like 35 epochs.
+
+New test is final and story.  I’m expecting final to do well, story to do poorly.  Check in the morning.
+
+--------------------------------------------------------------------------------
+
+Whelp, my prediction was super wrong.  Final doing well, story doing just as well.  Ugh.
+
+Time to try dreamland and stadium just to see if they also work well.  Wtf is wrong with fountain?  Is there something wrong with fountain?  Or did I just get unlucky that one time?
+
+It’s kinda interesting that dreamland is doing really well and stadium is doing just okay.  Stadium is getting better and better with no signs of slowing down, but its rate of improvement is way slower than dreamland, or final, or battlefield.  How much of this is randomness at work?  I just don’t know.
+
+--------------------------------------------------------------------------------
+
+Well now I’m trying again with mixing stages.  Dreamland, final, and battlefield (since those were the three that went quickly by themselves).  Let’s see if this trains at all?
+
+Yeah, looks like it’s gonna train well.
