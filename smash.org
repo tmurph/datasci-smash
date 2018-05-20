@@ -176,41 +176,45 @@ We can also do this faster version.
 
 ** Remote Notebook Setup
 :PROPERTIES:
-:header-args:jupyter+: :existing kernel-930257cb-ef69-4b9c-8a83-b1efd9f7e985.json
-:header-args:jupyter+: :ssh amazon
+:header-args:jupyter+: :existing kernel-b424b8e2-aebd-4f06-b599-1160299b1881.json
+:header-args:jupyter+: :ssh amazon-west
 :header-args:jupyter+: :session smash-remote
 :END:
 
 #+NAME: get_remote_kernel_name
-#+HEADER: :var remote="amazon"
+#+HEADER: :var remote="amazon-west"
 #+BEGIN_SRC shell
   ssh "${remote}" 'find /run/user/1000/jupyter -name kernel\* -execdir basename -a {} +'
 #+END_SRC
 
 #+RESULTS: get_remote_kernel_name
-: kernel-930257cb-ef69-4b9c-8a83-b1efd9f7e985.json
+: kernel-b424b8e2-aebd-4f06-b599-1160299b1881.json
 
 #+NAME: get_remote_kernel_json
-#+HEADER: :var remote="amazon"
+#+HEADER: :var remote="amazon-west"
 #+BEGIN_SRC shell
   ssh "${remote}" 'find /run/user/1000/jupyter -name kernel\*'
 #+END_SRC
 
 #+RESULTS: get_remote_kernel_json
-: /run/user/1000/jupyter/kernel-930257cb-ef69-4b9c-8a83-b1efd9f7e985.json
+: /run/user/1000/jupyter/kernel-b424b8e2-aebd-4f06-b599-1160299b1881.json
 
 #+NAME: copy_remote_kernel_json
-#+HEADER: :var remote_file=get_remote_kernel_json(remote="amazon")
-#+HEADER: :var remote="amazon"
+#+HEADER: :var remote_file=get_remote_kernel_json(remote="amazon-west")
+#+HEADER: :var remote="amazon-west"
 #+BEGIN_SRC shell 
   scp "${remote}:${remote_file}" ~/Library/Jupyter/runtime/$(basename "${remote_file}")
   find ~/Library/Jupyter/runtime -name 'kernel*' -execdir basename -a {} +
 #+END_SRC
 
 #+RESULTS: copy_remote_kernel_json
+| kernel-28d1e7fe-a35d-44d5-95a6-7d98eb62b071.json |
 | kernel-930257cb-ef69-4b9c-8a83-b1efd9f7e985.json |
 | kernel-9e3bbebe-fa1c-4ab5-b1ed-857b240cd8d7.json |
+| kernel-b297ae86-4dd7-4306-ac76-40a58503bab8.json |
+| kernel-b424b8e2-aebd-4f06-b599-1160299b1881.json |
 | kernel-bcc7f36c-117a-4af3-9c4e-b4051f4fabab.json |
+| kernel-e998e99b-a28a-45e2-957b-20397a6b678c.json |
 
 #+BEGIN_SRC jupyter 
 "trivial setup complete"
@@ -2812,3 +2816,33 @@ It’s kinda interesting that dreamland is doing really well and stadium is doin
 Well now I’m trying again with mixing stages.  Dreamland, final, and battlefield (since those were the three that went quickly by themselves).  Let’s see if this trains at all?
 
 Yeah, looks like it’s gonna train well.
+
+--------------------------------------------------------------------------------
+
+Been running the model a few more times.  Just the good stages.  But now with dropout.
+
+That definitely does help with overfitting.  The old stuff would get up to like 85% train accuracy, but never above 79 / 80% validation accuracy.  And I’m sure the losses showed something similar.  
+
+With dropout of 20% the two stayed basically in lock step the whole time.  The training rate really suffered, though.  After like 20 odd epochs it never got much above 55% training accuracy.  Although, at the same time, I’m actually using only about half the images.  That’s the next thing I should do, try dropout with more images.  I did cut it down to 10% dropout, though, to speed training.  It’s looking like it’s diverging at about 55% accuracy again.  That’s gotta be just a function of the number of images you’re using.
+
+I’m also trying a model with small dropout, fewer images, but a wider hidden layer.  Training is super slow again, but maybe this will get more accurate?
+
+--------------------------------------------------------------------------------
+
+Okay so with 10% dropout they do eventually diverge by that same 5% accuracy.  Is that just inevitable?  Or would 20% dropout help?  
+
+And the wide hidden layer is enabling better fit, even after validation.  There’s still a 5% gap in train / valid accuracy, but it’s a higher max than the narrower layer.
+
+So what do we do?  Let’s try 20% dropout and wide network.  And a second one that’s 20% dropout, wide layer, but two hidden layers.
+
+--------------------------------------------------------------------------------
+
+It’s weird.  On the one hand, the one layer got up to greater accuracy even on the validation accuracy.  But it was clearly overfitting a bit.  It got up to 66% accuracy, 60% validation accuracy.  On the other hand, the two layers petered out at 56% accuracy with no overfitting.
+
+I forced the two layer model to keep going … it’s up to 57% now, after almost an hour, but at least it’s not overfitting.  Ugh.
+
+Could be that I just need to run more data through at this point.
+
+Also, I just realized I can use the caching trick on the beefy computer.  It’s got more than enough RAM.  Just don’t bother trying to persist it to disk, it’s not worth it.
+
+*** Train Tiny Model on Big Amazon
