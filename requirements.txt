@@ -10,7 +10,7 @@ tensorflow-gpu
 h5py
 pydot
 graphviz
-pillow
+pillow!=5.1.0
 dtm2text
 opencv-python==3.3.0.10
 awscli
