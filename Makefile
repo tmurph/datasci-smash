@@ -361,8 +361,8 @@ $(KERASDIR)/%_done : $(KERASDIR)/shuffled_image_mask_list_% \
 	while read char ;\
 	do \
 	  mkdir -p $(@D)/$*/images/$$char $(@D)/$*/masks/$$char ;\
-	  grep $$char $< | cut -d' ' -f1 | xargs ln -s -t $(@D)/$*/images/$$char ;\
-	  grep $$char $< | cut -d' ' -f2 | xargs ln -s -t $(@D)/$*/masks/$$char ;\
+	  grep $${char}_ $< | cut -d' ' -f1 | xargs ln -s -t $(@D)/$*/images/$$char ;\
+	  grep $${char}_ $< | cut -d' ' -f2 | xargs ln -s -t $(@D)/$*/masks/$$char ;\
 	done <$(word 2,$^)
 	touch $@
 
