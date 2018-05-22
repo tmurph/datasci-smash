@@ -303,8 +303,8 @@ masks : $(MASKDIR)/mask_list
 
 .INTERMEDIATE : $(KERASDIR)/labelled_image_list
 
-$(KERASDIR)/labelled_image_list : $(IMAGEDIR)/image_list
-	cat $< | sed -e 's|.*/\(.*\).jpg|\1 &|' -e 's/_bg_on//' | sort >$@
+$(KERASDIR)/labelled_image_list : $(bg_images)
+	cat $+ | sed -e 's|.*/\(.*\).jpg|\1 &|' -e 's/_bg_on//' | sort >$@
 
 keras_masks := $(addprefix $(KERASDIR)/,\
 		 $(addsuffix _filtered_mask_list,\
