@@ -176,7 +176,7 @@ We can also do this faster version.
 
 ** Remote Notebook Setup
 :PROPERTIES:
-:header-args:jupyter+: :existing kernel-b424b8e2-aebd-4f06-b599-1160299b1881.json
+:header-args:jupyter+: :existing kernel-b7e341bd-9c5e-46a1-beaa-b082d4449c2a.json
 :header-args:jupyter+: :ssh amazon-west
 :header-args:jupyter+: :session smash-remote
 :END:
@@ -188,7 +188,7 @@ We can also do this faster version.
 #+END_SRC
 
 #+RESULTS: get_remote_kernel_name
-: kernel-b424b8e2-aebd-4f06-b599-1160299b1881.json
+: kernel-b7e341bd-9c5e-46a1-beaa-b082d4449c2a.json
 
 #+NAME: get_remote_kernel_json
 #+HEADER: :var remote="amazon-west"
@@ -197,7 +197,7 @@ We can also do this faster version.
 #+END_SRC
 
 #+RESULTS: get_remote_kernel_json
-: /run/user/1000/jupyter/kernel-b424b8e2-aebd-4f06-b599-1160299b1881.json
+: /run/user/1000/jupyter/kernel-b7e341bd-9c5e-46a1-beaa-b082d4449c2a.json
 
 #+NAME: copy_remote_kernel_json
 #+HEADER: :var remote_file=get_remote_kernel_json(remote="amazon-west")
@@ -208,13 +208,7 @@ We can also do this faster version.
 #+END_SRC
 
 #+RESULTS: copy_remote_kernel_json
-| kernel-28d1e7fe-a35d-44d5-95a6-7d98eb62b071.json |
-| kernel-930257cb-ef69-4b9c-8a83-b1efd9f7e985.json |
-| kernel-9e3bbebe-fa1c-4ab5-b1ed-857b240cd8d7.json |
-| kernel-b297ae86-4dd7-4306-ac76-40a58503bab8.json |
-| kernel-b424b8e2-aebd-4f06-b599-1160299b1881.json |
-| kernel-bcc7f36c-117a-4af3-9c4e-b4051f4fabab.json |
-| kernel-e998e99b-a28a-45e2-957b-20397a6b678c.json |
+: kernel-b7e341bd-9c5e-46a1-beaa-b082d4449c2a.json
 
 #+BEGIN_SRC jupyter 
 "trivial setup complete"
@@ -2652,6 +2646,7 @@ import random
 
 #+RESULTS:
 
+#+NAME: def_get_keras_images
 #+BEGIN_SRC jupyter
   def keras_image_and_mask(character, color, stage, orientation,
                                 img_number):
@@ -2671,7 +2666,7 @@ import random
       return rgb_image, grey_mask
 #+END_SRC
 
-#+RESULTS:
+#+RESULTS: def_get_keras_images
 
 #+HEADER: :var character="falco"
 #+HEADER: :var color=3
@@ -2689,6 +2684,7 @@ import random
 #+RESULTS:
 [[file:./jupyter_images/15075pd.png]]
 
+#+NAME: def_list_images
 #+BEGIN_SRC jupyter
   def list_all_images(directory="train"):
       data_dir = './data/keras/'
@@ -2701,7 +2697,7 @@ import random
       return all_images
 #+END_SRC
 
-#+RESULTS:
+#+RESULTS: def_list_images
 
 #+BEGIN_SRC jupyter 
   all_images = list_all_images()
@@ -2717,6 +2713,7 @@ import random
 
 #+RESULTS:
 
+#+NAME: plot_random_samples
 #+HEADER: :var num_samples=3
 #+BEGIN_SRC jupyter :results file
   fig, axarr = plt.subplots(num_samples, 3, sharex=True, sharey=True,
@@ -2846,3 +2843,71 @@ Could be that I just need to run more data through at this point.
 Also, I just realized I can use the caching trick on the beefy computer.  It’s got more than enough RAM.  Just don’t bother trying to persist it to disk, it’s not worth it.
 
 *** Train Tiny Model on Big Amazon
+So yo, switching to multi gpu modeling definitely speeds things up.  It was neat, I could actually train on 40% of the data in ~an hour.
+
+In my experiments, I didn’t get much benefit going from 256x2 layers up to 512x3.  Increasing data was what really helped.  But it really only brought it up from 80% validation accuracy to 86%, going from 20% up to 40% of the data.  So that’s neat, if I got up to about 70% I might crack 90% accuracy, maybe … but for real, what the hell?
+
+So a good clue came when I *finally* plotted the confusion matrix.  Cutting out fountain (and stadium? but I should probably put stadium back in) made things a lot cleaner for almost every character … except falco and falcon.  My guess is that those are characters with black outfits (oh shit, marth tho?).
+
+So help me, if there’s some weird thing where falco images actually wind up in the falcon bucket or vice versa …
+
+You could maybe test it by cutting out one of falco / falcon and seeing what happens.  Or drop back to cheapo amazon and investigate just those two characters.  Why the fuck are they so hard to differentiate?
+
+*** Falco vs Falcon, what gives?
+:PROPERTIES:
+:header-args:jupyter+: :session smash :existing () :ssh ()
+:END:
+
+#+CALL: setup_libraries()
+
+#+RESULTS:
+
+#+CALL: def_get_keras_images()
+
+#+RESULTS:
+
+#+CALL: def_list_images()
+
+#+RESULTS:
+
+#+BEGIN_SRC jupyter 
+  import os
+  import re
+  import random
+
+  all_images = list_all_images()
+  img_re = re.compile('(?:[^/]*/)*'
+                      '(?P<character>[^_]*)_'
+                      '(?P<color>[^_]*)_'
+                      '(?P<stage>[^_]*)_'
+                      '(?P<orientation>[^_]*)_'
+                      'bg_on_'
+                      '(?P<img_number>[0-9]{3})'
+                      '.jpg')
+#+END_SRC
+
+#+RESULTS:
+
+#+CALL: plot_random_samples()
+
+#+RESULTS:
+[[file:./jupyter_images/742423sX.png]]
+Okay, for real, I just can’t see what makes falco / falcon so special that they can’t be distinguished from each other.  I really don’t think it’s a color thing, especially because Marth has a lot of similar colors.  Yeah if fucks with the masking, but that shouldn’t really matter for the classification task.
+
+--------------------------------------------------------------------------------
+
+Omg I figured it out.  Fucking hell there was a bug in my code that was grepping for character names, so =grep falco= picked up falcon stuff.  Fixed and now things work great.
+
+*** Lessons Learned
+I reran the tiny model on the big amazon with 40% of the data … and got up to 94% validation accuracy!  Woo fucking hoo!  Sheik and Falcon are not doing as well as everybody else, but huh.
+
+Okay, let’s throw all the data at it, and see how high we can get.
+
+Heck yeah, 96%
+
+--------------------------------------------------------------------------------
+
+Want to try including stadium, and see if that fucks anything up?
+
+Sho didn’t!  If anything, that just made it better (25% more data!)
+
