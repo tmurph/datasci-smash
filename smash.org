@@ -152,31 +152,9 @@ We can also do this faster version.
 
 #+RESULTS:
 
-** Notebook LOB
-
-#+NAME: setup_libraries
-#+BEGIN_SRC jupyter
-  %matplotlib inline
-  import matplotlib
-  import matplotlib.pyplot as plt
-  from mpl_toolkits.mplot3d import Axes3D
-  plt.rcParams['figure.figsize'] = [9, 8]
-
-  import cv2
-  import numpy as np
-  import pandas as pd
-  pd.set_option('display.width', 74)
-  pd.set_option('display.max_columns', 15)
-  pd.set_option('display.max_rows', 20)
-#+END_SRC
-
-#+RESULTS: setup_libraries
-
-#+RESULTS:
-
 ** Remote Notebook Setup
 :PROPERTIES:
-:header-args:jupyter+: :existing kernel-b7e341bd-9c5e-46a1-beaa-b082d4449c2a.json
+:header-args:jupyter+: :existing kernel-5ec36e73-f9db-48bd-89fe-a0c06062e0b0.json
 :header-args:jupyter+: :ssh amazon-west
 :header-args:jupyter+: :session smash-remote
 :END:
@@ -188,7 +166,7 @@ We can also do this faster version.
 #+END_SRC
 
 #+RESULTS: get_remote_kernel_name
-: kernel-b7e341bd-9c5e-46a1-beaa-b082d4449c2a.json
+: kernel-5ec36e73-f9db-48bd-89fe-a0c06062e0b0.json
 
 #+NAME: get_remote_kernel_json
 #+HEADER: :var remote="amazon-west"
@@ -197,7 +175,7 @@ We can also do this faster version.
 #+END_SRC
 
 #+RESULTS: get_remote_kernel_json
-: /run/user/1000/jupyter/kernel-b7e341bd-9c5e-46a1-beaa-b082d4449c2a.json
+: /run/user/1000/jupyter/kernel-5ec36e73-f9db-48bd-89fe-a0c06062e0b0.json
 
 #+NAME: copy_remote_kernel_json
 #+HEADER: :var remote_file=get_remote_kernel_json(remote="amazon-west")
@@ -208,7 +186,9 @@ We can also do this faster version.
 #+END_SRC
 
 #+RESULTS: copy_remote_kernel_json
-: kernel-b7e341bd-9c5e-46a1-beaa-b082d4449c2a.json
+| kernel-5ec36e73-f9db-48bd-89fe-a0c06062e0b0.json |
+| kernel-64f6e02a-aa15-4bd9-931f-7ff1465e4384.json |
+| kernel-b7e341bd-9c5e-46a1-beaa-b082d4449c2a.json |
 
 #+BEGIN_SRC jupyter 
 "trivial setup complete"
@@ -2231,34 +2211,6 @@ Yeah, let’s just throw some very tight filtering bounds on there, throw away a
 :header-args:jupyter+: :ssh amazon-gpu
 :header-args:jupyter+: :session smash-remote
 :END:
-
-#+NAME: get_remote_kernel_json
-#+BEGIN_SRC shell :dir /ssh:amazon-gpu:
-  find /run/user/1000/jupyter -name 'kernel*'
-#+END_SRC
-
-#+RESULTS: get_remote_kernel_json
-: /run/user/1000/jupyter/kernel-f38a1b5f-4fc1-497c-9e1f-4973c4e50a54.json
-
-#+HEADER: :var remote_file=get_remote_kernel_json
-#+HEADER: :var remote="amazon-gpu"
-#+BEGIN_SRC shell 
-  scp "${remote}:${remote_file}" ~/Library/Jupyter/runtime/$(basename "${remote_file}")
-  find ~/Library/Jupyter/runtime -name 'kernel*' -execdir basename -a {} +
-#+END_SRC
-
-#+RESULTS:
-| kernel-2a18454b-9ce1-4e66-8892-9732c46a2fe1.json |
-| kernel-36b8c574-3dbd-48ac-a423-3540436ecf7b.json |
-| kernel-9a8479c8-50f9-44d2-a32a-a4a7da424c50.json |
-| kernel-f38a1b5f-4fc1-497c-9e1f-4973c4e50a54.json |
-
-#+BEGIN_SRC jupyter 
-  "trivial setup complete"
-#+END_SRC
-
-#+RESULTS:
-: trivial setup complete
 
 *** Classification Again
 The code from above is saved in [[file:smash.ipynb][smash.ipynb]] so I’ll just run it from there.  Use this space to do ad-hoc investigation from Emacs.  Probably mainly images.
