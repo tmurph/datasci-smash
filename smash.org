@@ -2864,6 +2864,8 @@ Want to try including stadium, and see if that fucks anything up?
 Sho didn’t!  If anything, that just made it better (25% more data!)
 
 ** Classification Task Writeup
+#+METADATA: (("git" ("suppress_output" . t)))
+
 Note: *I am a data scientist in the Bay Area!  Feel free to contact me with questions, concerns, offers for work ;)*
 
 - [[mailto:trevor.m.murphy@gmail.com][trevor.m.murphy@gmail.com]]
@@ -2874,188 +2876,206 @@ Note: *I am a data scientist in the Bay Area!  Feel free to contact me with ques
 
 This notebook contains the code and resources to recognize the most common player avatars (hereafter, characters) used by professional players of the competitive fighting game Super Smash Bros. Melee.
 
-A neural network is given images captured from scripted game play and trained via transfer learning from VGG16.  In tests the network achieves ~96% accuracy after ~15 training epochs.
+A neural network is given images captured from scripted game play and trained via transfer learning from VGG16.  In tests the network achieves ~96% classification accuracy after ~15 training epochs.  Here is a representative confusion matrix obtained after one such test:
 
-**** TODO Review of Transfer Learning
-I assume the reader is already familiar with convolutional neural networks (CNN), the Python language, and the OpenCV, Tensorflow, and Keras libraries.
+#+ATTR_ORG: :width 600
+[[file:jupyter_images/confusion_matrix.png]]
 
-Many practical applications of neural networks to computer vision tasks require very deep CNNs that can be prohibitively expensive to train.  However, we are fortunate that researchers with access to extremely powerful hardware have trained deep CNNs and moreover have published their results in a way that allows others to “stand on their shoulders”.
+**** What is Transfer Learning?
+The following contains merely the briefest description of transfer learning.  [[https://machinelearningmastery.com/transfer-learning-for-deep-learning/][Many]] [[http://ruder.io/transfer-learning/][more]] [[https://www.analyticsvidhya.com/blog/2017/06/transfer-learning-the-art-of-fine-tuning-a-pre-trained-model/][thorough]] [[http://ftp.cs.wisc.edu/machine-learning/shavlik-group/torrey.handbook09.pdf][explanations]] exist and can be found with a simple Google search.  I assume the reader is already familiar with convolutional neural networks (CNN).
 
-The availability of pre-trained deep CNNs enables so-called “transfer learning”,
+With this project I aimed to train a neural network to classify custom-generated data with greater than 90% classification accuracy.  One might construct a neural network from scratch for this purpose, but such an approach would also raise significant challenges and force difficult tradeoffs between depth and cost[fn:1].  The desired accuracy would require a sufficiently deep network, while the cost to train such a network would increase rapidly with depth.
+
+A common alternative to from-scratch training is transfer learning, where pre-trained, state-of-the-art image classification models are repurposed to suit a data set that may differ significantly from the original training data.  When this approach works it can significantly reduce the amount of training (and therefore cost) required to achieve the desired classification accuracy.
+
+The first step of a transfer learning solution is selecting a model.  The [[http://image-net.org/challenges/LSVRC/][ImageNet Large Scale Visual Recognition Challenge]] attracts the attention of brilliant researchers and the resources of universities and large internet companies.  As such, winning models make excellent starting points for transfer learning.  Not all models are equally easy to repurpose for any given data set, however.\\
+\\
+Following [[https://blog.keras.io/building-powerful-image-classification-models-using-very-little-data.html][this blog post from the Keras developers]] I selected VGG16 for this project.  My custom-generated images differ in size from the ImageNet training data, but VGG16’s simple convolutional architecture makes it uniquely capable of adapting to this difference.\\
+\\
+The last step in transfer learning is called “fine-tuning” and involves retraining or replacing the final layers of the model to increase the accuracy of predictions on the new data set.  The Keras library makes this particularly easy to do.
+
+[fn:1] For this project, cost is measured in dollars spent on computational resources rented from Amazon EC2 instances.
 
 **** Transfer Learning Code
 
 ***** Training Data
-Let’s have a look at some of the images used to train the CNN.  These images were captured from scripted gameplay.  The [[file:smash.org::*Data%20Generation][Data Generation]] section includes technical details on the capturing process.
+First, let’s have a look at the images used to train the CNN.  Over 100,000 images were used, so we’ll draw a random sample and use [[https://matplotlib.org/][Matplotlib]] to display them.
 
 #+BEGIN_SRC jupyter
-  %matplotlib inline
-  import matplotlib
-  import matplotlib.pyplot as plt
-  plt.rcParams['figure.figsize'] = [8, 6]
-#+END_SRC
+%matplotlib inline
+import matplotlib
+import matplotlib.pyplot as plt
+plt.rcParams['figure.figsize'] = [16, 12]
 
-#+RESULTS:
+import numpy as np
+#+END_SRC
 
 #+BEGIN_SRC jupyter
-  import os
-  import re
-  import cv2
+import os
+import re
 
-  DATA_DIR = "data/keras"
+DATA_DIR = "data/keras"
 
-  all_images = []
-  for root, dirs, files in os.walk(os.path.join(DATA_DIR, 'train', 'images')):
-      all_images.extend(files)
+all_images = []
+for root, dirs, files in os.walk(os.path.join(DATA_DIR, 'train', 'images')):
+    all_images.extend(files)
 
-  img_re = re.compile('(?:[^/]*/)*'
-                      '(?P<character>[^_]*)_'
-                      '(?P<color>[^_]*)_'
-                      '(?P<stage>[^_]*)_'
-                      '(?P<orientation>[^_]*)_'
-                      'bg_on_'
-                      '(?P<img_number>[0-9]{3})'
-                      '.jpg')
+img_re = re.compile('(?:[^/]*/)*'
+                    '(?P<character>[^_]*)_'
+                    '(?P<color>[^_]*)_'
+                    '(?P<stage>[^_]*)_'
+                    '(?P<orientation>[^_]*)_'
+                    'bg_on_'
+                    '(?P<img_number>[0-9]{3})'
+                    '.jpg')
 
-  def get_image(character, color, stage, orientation, img_number):
-      image = os.path.join(DATA_DIR, 'train', 'images', character, f'{character}_{color}_{stage}_{orientation}_bg_on_{img_number}.jpg')
+def get_image(character, color, stage, orientation, img_number):
+    image = os.path.join(DATA_DIR, 'train', 'images', character,
+                         '{character}_{color}_{stage}_{orientation}_bg_on_{img_number}.jpg'.format(character=character,
+                                                                                                   color=color,
+                                                                                                   stage=stage,
+                                                                                                   orientation=orientation,
+                                                                                                   img_number=img_number))
 
-      bgr_image = cv2.imread(image)
-      rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
+    rgb_image = plt.imread(image)
 
-      return rgb_image
+    return rgb_image
 
-  def get_image_by_name(name):
-      image_groups = re.search(img_re, name)
-      return get_image(**image_groups.groupdict())
+def get_image_by_name(name):
+    image_groups = re.search(img_re, name)
+    return get_image(**image_groups.groupdict())
 
-  IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE, IMAGE_DEPTH = get_image_by_name(all_images[0]).shape
+IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE, IMAGE_DEPTH = get_image_by_name(all_images[0]).shape
 #+END_SRC
 
-#+RESULTS:
+# don’t evaluate this code anymore, since we’ve saved a non-random final version
+#+BEGIN_SRC jupyter
+import random
 
-#+BEGIN_SRC jupyter :results file :exports both
-  import random
+NUM_ROWS = 4
+NUM_COLS = 4
 
-  NUM_ROWS = 4
-  NUM_COLS = 4
+fig, axarr = plt.subplots(NUM_ROWS, NUM_COLS, sharex=True, sharey=True, squeeze=False)
 
-  fig, axarr = plt.subplots(NUM_ROWS, NUM_COLS, sharex=True, sharey=True, squeeze=False)
+for i, image_name in enumerate(random.sample(all_images, NUM_ROWS * NUM_COLS)):
+    ax = axarr[divmod(i, NUM_COLS)]
+    ax.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
+    ax.imshow(get_image_by_name(image_name))
 
-  for i, image_name in enumerate(random.sample(all_images, NUM_ROWS * NUM_COLS)):
-      ax = axarr[divmod(i, NUM_COLS)]
-      ax.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='off', right='off', left='off', labelleft='off')
-      ax.imshow(get_image_by_name(image_name))
-
-  fig.tight_layout()
+fig.tight_layout()
 #+END_SRC
 
-#+RESULTS:
-[[file:./jupyter_images/66007eW.png]]
+#+ATTR_ORG: :width 600
 
-Some relevant limitations of this data set:
-- characters rarely fill more than 10% of the image
-- characters contort into a wide variety of poses
-- the same character can appear in a variety of color palettes
-- visual effects such as smoke and explosions frequently occlude parts of the characters
-- depending on color palette, characters may blend into the background
+These images were all captured from scripted gameplay.  The [[file:smash.org::*Data%20Generation][Data Generation]] section includes technical details on the capturing process.
 
-Nevertheless, VGG16 is able to extract useful features and accurately classify which character is featured in which image.
+Let’s compare these images against the images used in the ImageNet competition to train VGG16.  E.g. [[http://imagenet.stanford.edu/synset?wnid=n02123394][these images from the persian cat category]].
+
+Without additional metadata about the captured images, such as character bounding boxes or pose annotation points, we cannot easily compute rich statistics about the images.  However, visual inspection suggests the following differences to me:
+- Size within frame ::
+  - Characters in captured images rarely fill more than 10% of the frame
+  - Objects in ImageNet images often fill 25% or more of the frame
+- Variation of pose / orientation ::
+  - Characters in captured images, coming from a video game, contort into an extremely wide variety of poses
+  - Objects in ImageNet images are constrained by real biology
+- Composition within frame ::
+  - Captured images frequently include visual effects like smoke and explosions, which can occlude parts of the characters
+  - In the video game characters frequently fall off the side of the frame, resulting in capture images that cut off part of the character
+  - ImageNet images are comparatively well composed, placing the object in the front of the frame and fairly close to the center
+  
+Despite these differences, VGG16 is able to extract useful features that lead to accurate image classification.  This is the power of award-winning neural networks and transfer learning.
 
 ***** Feature Extraction
-Because VGG16 is very computationally expensive to run, and because we won’t actually adjust any of the weights or biases of the convolutional layers, we can save on training computation by running VGG16 once over our images to extract features.  This demands a lot of memory, but it enables us to rapidly train, test, and tweak subsequent classification models.
+Running image data through VGG16 is computationally expensive, so we would like to do it just once and cache the results for the later fine-tuning work.  These results are typically thought of as “important features” that have been “extracted” from the image data, realized as a very large floating point array.\\
+\\
+This caching technique trades off increased memory requirements against decreased computational time.  Fortunately, memory is cheap relative to GPU compute, so this trade off makes sense for our problem.
 
-The following code blocks set up the model.
+The following code blocks set up the VGG model.\\
+\\
+We want to take advantage of the GPUs available to us, which we can do with the function =keras.utils.multi_gpu_model=.  This function accepts a template model (typically compiled for a CPU-only architecture) and creates an identical model compiled for a multi-GPU architecture.
 
 #+BEGIN_SRC jupyter
-  import tensorflow as tf
-  from keras.applications.vgg16 import VGG16
-  from keras.utils import multi_gpu_model
-  from keras.models import clone_model
-  from GPUtil import getGPUs
+import tensorflow as tf
+from keras.applications.vgg16 import VGG16
+from keras.utils import multi_gpu_model
+from keras.models import clone_model
+from GPUtil import getGPUs
 
-  try:
-      NUM_GPU = len(getGPUs())
-  except:
-      NUM_GPU = 0
+try:
+    NUM_GPU = len(getGPUs())
+except:
+    NUM_GPU = 0
 
-  def gpuify_model_maybe(model):
-      result = None
-      if NUM_GPU >= 2:
-          result = multi_gpu_model(model, gpus=NUM_GPU)
-      elif NUM_GPU == 1:
-          with tf.device("/gpu:0"):
-              result = clone_model(model)
-      else:
-          result = model
-      return result
+def gpuify_model_maybe(model):
+    result = None
+    if NUM_GPU >= 2:
+        result = multi_gpu_model(model, gpus=NUM_GPU)
+    elif NUM_GPU == 1:
+        with tf.device("/gpu:0"):
+            result = clone_model(model)
+    else:
+        result = model
+    return result
 #+END_SRC
 
 #+RESULTS:
 
 #+BEGIN_SRC jupyter
-  with tf.device("/cpu:0"):
-      vgg_model = VGG16(include_top=False, weights="imagenet", input_shape=(IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE, IMAGE_DEPTH))
-  vgg_model = gpuify_model_maybe(vgg_model)
+with tf.device("/cpu:0"):
+    template_vgg_model = VGG16(include_top=False, weights="imagenet", input_shape=(IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE, IMAGE_DEPTH))
+gpu_vgg_model = gpuify_model_maybe(template_vgg_model)
 #+END_SRC
 
 #+RESULTS:
 
-The following code blocks set up the data flow into the model.
+The following code blocks set up the data flow into the model.\\
+\\
+As with most transfer learning work, we must preprocess our images to match key statistical features of the original data set.  The function =keras.applications.imagenet_utils.preprocess_input= does just this.
 
 #+BEGIN_SRC jupyter
-  from keras.preprocessing.image import ImageDataGenerator
-  from keras.applications.imagenet_utils import preprocess_input
+from keras.preprocessing.image import ImageDataGenerator
+from keras.applications.imagenet_utils import preprocess_input
 
-  BATCH_SIZE = 16 * max(NUM_GPU, 1)
+BATCH_SIZE = 16 * max(NUM_GPU, 1)
 
-  def make_generator(folder="train",
-                     data_gen_args={"fill_mode": "constant",
-                                    "cval": 0,
-                                    "width_shift_range": 0.05,
-                                    "height_shift_range": 0.05,
-                                    "zoom_range": 0.1,
-                                    "horizontal_flip": True,
-                                    "preprocessing_function": preprocess_input},
-                     data_flow_args={"seed": 1,
-                                     "batch_size": BATCH_SIZE}):
+def make_generator(folder="train",
+                   data_gen_args={"fill_mode": "constant",
+                                  "cval": 0,
+                                  "width_shift_range": 0.05,
+                                  "height_shift_range": 0.05,
+                                  "zoom_range": 0.1,
+                                  "horizontal_flip": True,
+                                  "preprocessing_function": preprocess_input},
+                   data_flow_args={"seed": 1,
+                                   "batch_size": BATCH_SIZE}):
 
-      image_datagen = ImageDataGenerator(**data_gen_args)
+    image_datagen = ImageDataGenerator(**data_gen_args)
 
-      image_generator = image_datagen.flow_from_directory(
-          directory=os.path.join(DATA_DIR, folder, "images"),
-          target_size=(IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE),
-          color_mode='rgb',
-          ,**data_flow_args)
+    image_generator = image_datagen.flow_from_directory(
+        directory=os.path.join(DATA_DIR, folder, "images"),
+        target_size=(IMAGE_ROW_SIZE, IMAGE_COLUMN_SIZE),
+        color_mode='rgb',
+        ,**data_flow_args)
 
-      return image_generator
-
-  def truncate_generator(gen, limit=None):
-      i = 0
-      for elt in gen:
-          if limit and i < limit:
-              yield elt
-              i += 1
-          else:
-              return
+    return image_generator
 #+END_SRC
 
-#+RESULTS:
+Due to the design of the Keras library, we can’t easily extract features from our images and simultaneously retain the image labels.  To work around this, we’re going to iterate over our images twice, in the same deterministic order both times, pulling out features one time and labels the other.
 
-We’re going to run VGG16 over our images in non-random order.  The =model.predict_generator= API requires a generator that emits solely arrays of images (as opposed to pairs like =(image_array, label_array)=).  We use =class_mode: None= and =shuffle: False= to get the appropriate generator.
+For feature extraction, we will use the =model.predict_generator= API that requires a generator that emits solely arrays of images (as opposed to pairs like =(image_array, label_array)=).  To get this required generator we use =class_mode: None= and =shuffle: False=.
 
 #+BEGIN_SRC jupyter
-  image_generator_train = make_generator("train", data_gen_args={"preprocessing_function": preprocess_input},
-                                         data_flow_args={"batch_size": BATCH_SIZE, "class_mode": None, "shuffle": False})
+image_generator_train = make_generator("train", data_gen_args={"preprocessing_function": preprocess_input},
+                                       data_flow_args={"batch_size": BATCH_SIZE, "class_mode": None, "shuffle": False})
 #+END_SRC
 
-We also need to extract the labels for our images in the same non-random order.  So we create another generator with =shuffle: False= but without =class_mode: None=.
+For label extraction, we will use =shuffle: False= again to iterate in the same order as above, but we fall back to the default =class_mode= in order to retain the labels.=
 
 #+BEGIN_SRC jupyter
-  label_generator_train = make_generator("train", data_gen_args={}, data_flow_args={"batch_size": BATCH_SIZE, "shuffle": False})
+label_generator_train = make_generator("train", data_gen_args={}, data_flow_args={"batch_size": BATCH_SIZE, "shuffle": False})
 #+END_SRC
 
-Now we run our feature extraction code.  We’ll get two arrays, one of labels, the other of image feature data.
+After we define some helper functions, we’ll finally be ready to extract our two arrays.
 
 #+BEGIN_SRC jupyter
   def count_images(folder="train"):
@@ -3067,203 +3087,246 @@ Now we run our feature extraction code.  We’ll get two arrays, one of labels, 
           data_size += len(os.listdir(char_directory))
 
       return data_size
+
+  def truncate_generator(gen, limit=None):
+      if limit is None:
+          return
+
+      for i, elt in enumerate(gen):
+          if i < limit:
+              yield elt
+          else:
+              break
+#+END_SRC
+
+Note that the following code can take a significant amount of time to run.
+
+#+BEGIN_SRC jupyter
+image_count_train = count_images("train")
+image_count_train_generator_cutoff = image_count_train / BATCH_SIZE + 1
+
+train_labels = []
+for _, labels in truncate_generator(label_generator_train, image_count_train_generator_cutoff):
+    train_labels.extend(labels)
+train_labels = np.array(train_labels[:image_count_train])
+
+train_data = gpu_vgg_model.predict_generator(image_generator_train, steps=image_count_train_generator_cutoff)
+train_data = train_data[:image_count_train]
+#+END_SRC
+
+Now let’s extract the analogous pair of arrays for our validation data.
+
+#+BEGIN_SRC jupyter
+image_count_valid = count_images("valid")
+image_count_valid_generator_cutoff = image_count_valid / BATCH_SIZE + 1
+
+image_generator_valid = make_generator("valid", data_gen_args={"preprocessing_function": preprocess_input},
+                                       data_flow_args={"batch_size": BATCH_SIZE, "class_mode": None, "shuffle": False})
+label_generator_valid = make_generator("valid", data_gen_args={}, data_flow_args={"batch_size": BATCH_SIZE, "shuffle": False})
+
+valid_labels = []
+for _, labels in truncate_generator(label_generator_valid, image_count_valid_generator_cutoff):
+    valid_labels.extend(labels)
+valid_labels = np.array(valid_labels[:image_count_valid])
+
+valid_data = gpu_vgg_model.predict_generator(image_generator_valid, steps=image_count_valid_generator_cutoff)
+valid_data = valid_data[:image_count_valid]
+#+END_SRC
+
+Now we have our training and validation arrays, but they are in non-random order.  Before we can train our final neural network we must randomize them, being careful to preserve the pairwise correlation between features and labels .
+
+#+BEGIN_SRC jupyter
+  train_random_index = np.arange(train_data.shape[0])
+  np.random.shuffle(train_random_index)
+  train_data = train_data[train_random_index]
+  train_labels = train_labels[train_random_index]
+
+  valid_random_index = np.arange(valid_data.shape[0])
+  np.random.shuffle(valid_random_index)
+  valid_data = valid_data[valid_random_index]
+  valid_labels = valid_labels[valid_random_index]
+#+END_SRC
+
+***** Build and train the network
+We’ll build our model in a CPU environment but compile it for a GPU environment.  Because our classes are relatively balanced in terms of number of images, we’ll use categorical crossentropy as our loss and classification accuracy as our metric.
+
+#+BEGIN_SRC jupyter
+from keras.models import Sequential
+from keras.optimizers import Adam
+from keras.layers import Dropout, Flatten, Dense
+
+LEARNING_RATE = 0.0001
+NUM_CHARACTERS = len(os.listdir(os.path.join(DATA_DIR, "train", "images")))
+
+def build_model(input_shape, target_num=NUM_CHARACTERS, hidden_width=128, hidden_depth=1, dropout_rate=0.2):
+    with tf.device("/cpu:0"):
+        model = Sequential()
+        model.add(Flatten(input_shape=input_shape))
+        for _ in range(hidden_depth):
+            model.add(Dense(hidden_width, activation='relu', kernel_initializer='lecun_uniform'))
+            model.add(Dropout(dropout_rate))
+        model.add(Dense(target_num, activation='softmax'))
+
+    return model
+
+def compile_model(model, learning_rate=LEARNING_RATE):
+    model = gpuify_model_maybe(model)
+    model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=['accuracy'])
+
+    return model
 #+END_SRC
 
 #+RESULTS:
 
-#+BEGIN_SRC jupyter
-  image_count_train = count_images("train")
-  image_count_train_generator_cutoff = image_count_train / BATCH_SIZE + 1
-
-  train_labels = []
-  for _, labels in truncate_generator(label_generator_train, image_count_train_generator_cutoff):
-      train_labels.extend(labels)
-  train_labels = np.array(train_labels[:image_count_train])
-
-  train_data = vgg_model.predict_generator(image_generator_train, steps=image_count_train_generator_cutoff)
-  train_data = train_data[:image_count_train]
-#+END_SRC
-
-Let’s generate the equivalent arrays for our validation data.
+The following callbacks will, first, ensure early stopping in case of a bad model, and, second, improve learning as the model reaches diminishing returns.
 
 #+BEGIN_SRC jupyter
-  image_count_valid = count_images("valid")
-  image_count_valid_generator_cutoff = image_count_valid / BATCH_SIZE + 1
+from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 
-  image_generator_valid = make_generator("valid", data_gen_args={"preprocessing_function": preprocess_input},
-                                         data_flow_args={"batch_size": BATCH_SIZE, "class_mode": None, "shuffle": False})
-  label_generator_valid = make_generator("valid", data_gen_args={}, data_flow_args={"batch_size": BATCH_SIZE, "shuffle": False})
-
-  valid_labels = []
-  for _, labels in truncate_generator(label_generator_valid, image_count_valid_generator_cutoff):
-      valid_labels.extend(labels)
-  valid_labels = np.array(valid_labels[:image_count_valid])
-
-  feature_data = vgg_model.predict_generator(image_generator_valid, steps=image_count_valid_generator_cutoff)
-  feature_data = feature_data[:image_count_valid]
+stop_on_val_loss = EarlyStopping(monitor='val_loss', min_delta=0.005, patience=3, verbose=0, mode='auto')
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=2, min_lr=0.00001)
 #+END_SRC
 
-Our arrays are in non-random order.  Before we can train our small neural network we need to randomize the data.
+Let’s visualize our model as a quick sanity check.
 
-#+BEGIN_SRC jupyter
-  train_randomizer = np.arange(train_data.shape[0])
-  np.random.shuffle(train_randomizer)
-  train_data = train_data[train_randomizer]
-  train_labels = train_labels[train_randomizer]
-
-  valid_randomizer = np.arange(valid_data.shape[0])
-  np.random.shuffle(valid_randomizer)
-  valid_data = valid_data[valid_randomizer]
-  valid_labels = valid_labels[valid_randomizer]
-#+END_SRC
-
-It’s almost show time.  We’ll build our model in a CPU environment but compile it for a GPU environment.
-
-#+BEGIN_SRC jupyter
-  from keras.models import Sequential
-  from keras.optimizers import Adam
-  from keras.layers import Dropout, Flatten, Dense
-
-  LEARNING_RATE = 0.0001
-  NUM_CHARACTERS = len(os.listdir(os.path.join(DATA_DIR, "train", "images")))
-
-  def build_model(input_shape, target_num=NUM_CHARACTERS, hidden_width=128, hidden_depth=1, dropout_rate=0.2):
-      with tf.device("/cpu:0"):
-          model = Sequential()
-          model.add(Flatten(input_shape=input_shape))
-          for _ in range(hidden_depth):
-              model.add(Dense(hidden_width, activation='relu', kernel_initializer='lecun_uniform'))
-              model.add(Dropout(dropout_rate))
-          model.add(Dense(target_num, activation='softmax'))
-
-      return model
-
-  def compile_model(model, learning_rate=LEARNING_RATE):
-      model = gpuify_model_maybe(model)
-      model.compile(optimizer=Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=['accuracy'])
-
-      return model
-#+END_SRC
-
-We want to use these callbacks to ensure early stopping in case of a bad model, and to improve learning as the model reaches diminishing returns.
-
-#+BEGIN_SRC jupyter
-  from keras.callbacks import EarlyStopping, ReduceLROnPlateau
-
-  stop_on_val_loss = EarlyStopping(monitor='val_loss', min_delta=0.005, patience=3, verbose=0, mode='auto')
-  reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=2, min_lr=0.00001)
-#+END_SRC
-
-Time to train!
-
-#+BEGIN_SRC jupyter :results output
-  template_model = build_model(train_data.shape[1:], hidden_width=512, hidden_depth=3, dropout_rate=0.2)
-  compiled_model = compile_model(template_model)
-
-  training_history = compiled_model.fit(train_data, train_labels,
-                                        epochs=15,
-                                        batch_size=BATCH_SIZE,
-                                        validation_data=(valid_data, valid_labels),
-                                        callbacks=[stop_on_val_loss, reduce_lr])
-#+END_SRC
-
-Per a bug in Keras, we can’t actually save the =compiled_model= object to disk.  However, all the structure and learned weights of the =compiled_model= object are shared with the =template_model= object, so we can use that variable instead.
-
-The =template_model= object is not very useful for practical classification, however, since it expects an array of VGG16 features.  Before we save our progress we must stack the =template_model= on top of VGG16.
-
-#+BEGIN_SRC jupyter
-  from keras.models import Model
-  import datetime
-
-  full_model = Model(inputs=vgg_model.input, outputs=template_model(vgg_model.output))
-  full_model.save(os.path.join(DATA_DIR, datetime.datetime.today().strftime('%Y-%m-%d-%H-%M') + "-model.h5"))
+#+BEGIN_SRC jupyter :exports both
+template_model = build_model(train_data.shape[1:], hidden_width=512, hidden_depth=3, dropout_rate=0.2)
+template_model.summary()
 #+END_SRC
 
 #+RESULTS:
+#+begin_example
+_________________________________________________________________
+Layer (type)                 Output Shape              Param #   
+=================================================================
+flatten_3 (Flatten)          (None, 138240)            0         
+_________________________________________________________________
+dense_9 (Dense)              (None, 512)               70779392  
+_________________________________________________________________
+dropout_7 (Dropout)          (None, 512)               0         
+_________________________________________________________________
+dense_10 (Dense)             (None, 512)               262656    
+_________________________________________________________________
+dropout_8 (Dropout)          (None, 512)               0         
+_________________________________________________________________
+dense_11 (Dense)             (None, 512)               262656    
+_________________________________________________________________
+dropout_9 (Dropout)          (None, 512)               0         
+_________________________________________________________________
+dense_12 (Dense)             (None, 8)                 4104      
+=================================================================
+Total params: 71,308,808
+Trainable params: 71,308,808
+Non-trainable params: 0
+_________________________________________________________________
+#+end_example
 
-Time to run our full model on test data and see how we do!
-
-#+BEGIN_SRC jupyter
-  image_count_test = count_images("test")
-  image_count_test_generator_cutoff = image_count_test / BATCH_SIZE + 1
-
-  image_generator_test = make_generator("test", data_gen_args={"preprocessing_function": preprocess_input},
-      data_flow_args={"batch_size": BATCH_SIZE, "class_mode": None, "shuffle": False})
-  label_generator_test = make_generator("test", data_gen_args={}, data_flow_args={"batch_size": BATCH_SIZE, "shuffle": False})
-#+END_SRC
-
-#+RESULTS:
-
-#+BEGIN_SRC jupyter
-  true_labels = []
-  for _, labels in truncate_generator(label_generator_test, image_count_test_generator_cutoff):
-      true_labels.extend(labels)
-  true_labels = np.array(true_labels[:image_count_test])
-  true_classes = true_labels.argmax(1)
-#+END_SRC
-
-#+RESULTS:
-
-#+BEGIN_SRC jupyter
-  pred_labels = full_model.predict_generator(image_generator_test, steps=image_count_test_generator_cutoff)
-  pred_labels = pred_labels[:image_count_test]
-  pred_classes = pred_labels.argmax(1)
-#+END_SRC
-
-#+RESULTS:
+Finally!  Time to train!
 
 #+BEGIN_SRC jupyter
-  from sklearn.metrics import confusion_matrix
+compiled_model = compile_model(template_model)
 
-  c_matrix = confusion_matrix(true_classes, pred_classes)
+training_history = compiled_model.fit(train_data, train_labels,
+                                      epochs=15,
+                                      batch_size=BATCH_SIZE,
+                                      validation_data=(valid_data, valid_labels),
+                                      callbacks=[stop_on_val_loss, reduce_lr])
 #+END_SRC
 
-#+RESULTS:
+Due to a bug in Keras, we cannot directly save the weights and structure of a model compiled for multiple GPUs.  However, the multi-GPU model object shares both structure *and* weights with the template model object, which we can save to disk.
 
-And now we can visualize our progress!
+Before we save the =template_model=, however, we must remember that it is not yet useable for testing / production.  It expects an array of VGG16 features, but in testing we will provide new images.  So now we’ll stack the =template_model= on top of the =template_vgg_model= and save the result to disk.
 
 #+BEGIN_SRC jupyter
-  import itertools
+from keras.models import Model
+import datetime
 
-  def plot_confusion_matrix(matrix, classes, normalize=False, title='Confusion matrix', cmap=plt.cm.Blues):
-      """
-      This function prints and plots the confusion matrix.
-      Normalization can be applied by setting `normalize=True`.
-      """
-      if normalize:
-          matrix = matrix.astype('float') / matrix.sum(axis=1)[:, np.newaxis]
-
-      plt.imshow(matrix, interpolation='nearest', cmap=cmap)
-      plt.title(title)
-      plt.colorbar()
-      tick_marks = np.arange(len(classes))
-      plt.xticks(tick_marks, classes, rotation=45)
-      plt.yticks(tick_marks, classes)
-
-      fmt = '.2f' if normalize else 'd'
-      thresh = matrix.max() / 2.
-      for i, j in itertools.product(range(matrix.shape[0]), range(matrix.shape[1])):
-          plt.text(j, i, format(matrix[i, j], fmt),
-                   horizontalalignment="center",
-                   color="white" if matrix[i, j] > thresh else "black")
-
-      plt.tight_layout()
-      plt.ylabel('True label')
-      plt.xlabel('Predicted label')
+output_layer = template_vgg_model.output
+for layer in template_model.layers:
+    output_layer = layer(output_layer)
+full_model = Model(inputs=template_vgg_model.input, outputs=output_layer)
+full_model.save(os.path.join(DATA_DIR, datetime.datetime.today().strftime('%Y-%m-%d-%H-%M') + "-model.h5"))
 #+END_SRC
 
-#+RESULTS:
+****** Test the network
 
-We could visualize the confusion matrix over abstract numeric representations of classes … but with a little digging we can find the actual class names as taken from the folder hierarchy.
+To compare true classification labels with the predictions our model emits, we’ll need to iterate twice over our test images in deterministic order again.  One pass will run the images through the model to produce predicted labels, and the other will collect the true labels for the images.
 
-#+BEGIN_SRC jupyter :results file :exports both
-  class_names = [c for c, i in sorted(label_generator_test.class_indices.items(), key=lambda pair: pair[1])]
+#+BEGIN_SRC jupyter
+image_count_test = count_images("test")
+image_count_test_generator_cutoff = image_count_test / BATCH_SIZE + 1
 
-  plot_confusion_matrix(c_matrix, class_names, normalize=True)
+image_generator_test = make_generator("test", data_gen_args={"preprocessing_function": preprocess_input},
+    data_flow_args={"batch_size": BATCH_SIZE, "class_mode": None, "shuffle": False})
+label_generator_test = make_generator("test", data_gen_args={}, data_flow_args={"batch_size": BATCH_SIZE, "shuffle": False})
 #+END_SRC
 
-#+RESULTS:
-[[file:./jupyter_images/5402qot.png]]
+#+BEGIN_SRC jupyter
+true_labels = []
+for _, labels in truncate_generator(label_generator_test, image_count_test_generator_cutoff):
+    true_labels.extend(labels)
+true_labels = np.array(true_labels[:image_count_test])
+true_classes = true_labels.argmax(1)
+#+END_SRC
+
+#+BEGIN_SRC jupyter
+pred_labels = full_model.predict_generator(image_generator_test, steps=image_count_test_generator_cutoff)
+pred_labels = pred_labels[:image_count_test]
+pred_classes = pred_labels.argmax(1)
+#+END_SRC
+
+#+BEGIN_SRC jupyter
+from sklearn.metrics import confusion_matrix
+
+c_matrix = confusion_matrix(true_classes, pred_classes)
+#+END_SRC
+
+#+BEGIN_SRC jupyter
+import itertools
+
+def plot_confusion_matrix(matrix, classes, normalize=False, title='Confusion matrix', cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    if normalize:
+        matrix = matrix.astype('float') / matrix.sum(axis=1)[:, np.newaxis]
+
+    plt.imshow(matrix, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+
+    fmt = '.2f' if normalize else 'd'
+    thresh = matrix.max() / 2.
+    for i, j in itertools.product(range(matrix.shape[0]), range(matrix.shape[1])):
+        plt.text(j, i, format(matrix[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if matrix[i, j] > thresh else "black")
+
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+#+END_SRC
+
+By default our class labels are encoded as integers, but we can actually find the actual class names as taken from the folder hierarchy if we know where to look.
+
+#+BEGIN_SRC jupyter 
+class_names = [c for c, i in sorted(label_generator_test.class_indices.items(), key=lambda pair: pair[1])]
+#+END_SRC
+
+Now we can visualize our accuracy!  
+
+#+NAME: confusion_matrix
+#+BEGIN_SRC jupyter
+plot_confusion_matrix(c_matrix, class_names, normalize=True)
+#+END_SRC
+
+#+ATTR_ORG: :width 600
+#+RESULTS: confusion_matrix
+[[file:jupyter_images/confusion_matrix.png]]
 
 **** TODO Data Generation
 Talk about your code here
@@ -3272,4 +3335,4 @@ Talk about your code here
 
 ***** Usage
 
-**** Discussion
+**** TODO Discussion
