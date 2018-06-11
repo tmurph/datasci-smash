@@ -3147,7 +3147,7 @@ Now we have our training and validation arrays, but they are in non-random order
   valid_labels = valid_labels[valid_random_index]
 #+END_SRC
 
-***** Build and train the network
+***** Train the Network
 We’ll build our model in a CPU environment but compile it for a GPU environment.  Because our classes are relatively balanced in terms of number of images, we’ll use categorical crossentropy as our loss and classification accuracy as our metric.
 
 #+BEGIN_SRC jupyter
@@ -3248,9 +3248,9 @@ full_model = Model(inputs=template_vgg_model.input, outputs=output_layer)
 full_model.save(os.path.join(DATA_DIR, datetime.datetime.today().strftime('%Y-%m-%d-%H-%M') + "-model.h5"))
 #+END_SRC
 
-****** Test the network
+***** Test the Network
 
-To compare true classification labels with the predictions our model emits, we’ll need to iterate twice over our test images in deterministic order again.  One pass will run the images through the model to produce predicted labels, and the other will collect the true labels for the images.
+To compare true classification labels with the predictions our model emits, we’ll need to iterate twice over our test images in deterministic order.  One pass will run the images through the model to produce predicted labels, and the other will collect the true labels for the images.
 
 #+BEGIN_SRC jupyter
 image_count_test = count_images("test")
@@ -3311,13 +3311,13 @@ def plot_confusion_matrix(matrix, classes, normalize=False, title='Confusion mat
     plt.xlabel('Predicted label')
 #+END_SRC
 
-By default our class labels are encoded as integers, but we can actually find the actual class names as taken from the folder hierarchy if we know where to look.
+By default our class labels are encoded as integers, but we can find the actual class names as taken from the folder hierarchy if we know where to look.
 
 #+BEGIN_SRC jupyter 
 class_names = [c for c, i in sorted(label_generator_test.class_indices.items(), key=lambda pair: pair[1])]
 #+END_SRC
 
-Now we can visualize our accuracy!  
+Now we can visualize our accuracy!
 
 #+NAME: confusion_matrix
 #+BEGIN_SRC jupyter
