@@ -86,6 +86,7 @@ moves_list_from_target = $(if $(findstring $(HISTDIR),$(1)),\
 
 usage : # this happens when make is called with no arguments
 	@echo "Usage:"
+	@echo "    make dirs"
 	@echo "    make hist"
 	@echo "    make images"
 	@echo "    make masks"
@@ -94,19 +95,33 @@ usage : # this happens when make is called with no arguments
 	@echo "Set the optional arguments CHARACTERS, COLORS, STAGES,"
 	@echo "  and ORIENTATIONS to limit the scope of make."
 	@echo ""
-	@echo "Set the optional arguments HISTDIR, IMAGEDIR, and MASKDIR"
-	@echo "  to change the destination of results."
+	@echo "Set the optional arguments HISTDIR, IMAGEDIR, MASKDIR,"
+	@echo "  and KERASDIR to change the destination of results."
 	@echo ""
-	@echo "Current directories are:"
-	@echo "  HISTDIR="$(HISTDIR)
-	@echo "  IMAGEDIR="$(IMAGEDIR)
-	@echo "  MASKDIR="$(MASKDIR)
+	@echo "Set the optional arguments KERAS_TRAIN_PCT,"
+	@echo "  KERAS_TEST_PCT, and KERAS_VALID_PCT to adjust the"
+	@echo "  splits into train/test/valid data sets."
+	@echo ""
+	@echo "  Percentages may sum to less than 100, meaning only a"
+	@echo "  subset of the image data will be provided to the model."
 	@echo ""
 	@echo "Current scope is:"
 	@echo "  CHARACTERS="$(CHARACTERS)
 	@echo "  COLORS="$(COLORS)
 	@echo "  STAGES="$(STAGES)
 	@echo "  ORIENTATIONS="$(ORIENTATIONS)
+	@echo ""
+	@echo "Current directories are:"
+	@echo "  HISTDIR="$(HISTDIR)
+	@echo "  IMAGEDIR="$(IMAGEDIR)
+	@echo "  MASKDIR="$(MASKDIR)
+	@echo "  KERASDIR="$(KERASDIR)
+	@echo ""
+	@echo "Current percentages are:"
+	@echo "  KERAS_TRAIN_PCT="$(KERAS_TRAIN_PCT)
+	@echo "  KERAS_TEST_PCT="$(KERAS_TEST_PCT)
+	@echo "  KERAS_VALID_PCT="$(KERAS_VALID_PCT)
+	@echo ""
 
 $(MAKEABLE_DIRS) :
 	mkdir -p $@
