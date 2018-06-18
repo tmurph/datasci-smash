@@ -30,6 +30,7 @@ STAGES := battlefield dreamland final fountain stadium story
 ORIENTATIONS := left right
 
 MOVES_LIST := moves_list
+HISTOGRAM_MOVES_LIST := histogram_moves_list
 
 dtm_setup_roots := 10_to_debug 11_to_dairantou \
 		   $(addprefix 20_char_select_,$(CHARACTERS)) \
