@@ -80,6 +80,9 @@ hist_csvs := $(addprefix $(HISTDIR)/,\
 		    $(hist_stems)))
 
 char_name_from_stem = $(firstword $(subst _, ,$(notdir $(1))))
+moves_list_from_target = $(if $(findstring $(HISTDIR),$(1)),\
+			   $(HISTOGRAM_MOVES_LIST),\
+			   $(MOVES_LIST))
 
 usage : # this happens when make is called with no arguments
 	@echo "Usage:"
@@ -162,7 +165,8 @@ $(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_compile.sql \
 		      $(COMPILEMOVESDIR)/$$(call char_name_from_stem,$$*)_frames.csv \
 		      $(COMPILEMOVESDIR)/dtm_inputs.csv \
 		      %_setup_moves_list \
-		      $(MOVES_LIST) $(MOVES_LIST)
+		      $$(call moves_list_from_target,$$@) \
+		      $$(call moves_list_from_target,$$@)
 	$(PYTHON) $< $(wordlist 2,3,$+) \
 		     $(patsubst %,@%,$(wordlist 4,6,$+)) | wc -l >$@
 
@@ -177,7 +181,9 @@ $(COMPILEMOVESDIR)/dtm_inputs.csv : $(COMPILEMOVESDIR)/dtm_inputs_compile.sql \
 %.dtm : %_setup_files_list $(SCRIPTDIR)/compile_moves.py \
 	$(COMPILEMOVESDIR)/$$(call char_name_from_stem,$$*)_frames.csv \
 	$(COMPILEMOVESDIR)/dtm_inputs.csv \
-	%_setup_moves_list $(MOVES_LIST) $(MOVES_LIST) \
+	%_setup_moves_list \
+	$$(call moves_list_from_target,$$@) \
+	$$(call moves_list_from_target,$$@)
 	$(RECORDAVIDIR)/melee_header
 	{ cat $(word 1,$+) | xargs cat ; \
 	  $(PYTHON) $(word 2,$+) $(wordlist 3,4,$+) \
