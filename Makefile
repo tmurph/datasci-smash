@@ -93,20 +93,20 @@ usage : # this happens when make is called with no arguments
 	@echo "    make masks"
 	@echo "    make keras"
 	@echo ""
-	@echo "Set the optional arguments CHARACTERS, COLORS, STAGES,"
-	@echo "  and ORIENTATIONS to limit the scope of make."
+	@echo "You may set the variables CHARACTERS, COLORS, STAGES,"
+	@echo "  and ORIENTATIONS to limit the scope of data generation."
 	@echo ""
-	@echo "Set the optional arguments HISTDIR, IMAGEDIR, MASKDIR,"
+	@echo "You may set the variables HISTDIR, IMAGEDIR, MASKDIR,"
 	@echo "  and KERASDIR to change the destination of results."
 	@echo ""
-	@echo "Set the optional arguments KERAS_TRAIN_PCT,"
-	@echo "  KERAS_TEST_PCT, and KERAS_VALID_PCT to adjust the"
-	@echo "  splits into train/test/valid data sets."
+	@echo "You may set the variables KERAS_TRAIN_PCT,"
+	@echo "  KERAS_TEST_PCT, and KERAS_VALID_PCT to control how much"
+	@echo "  of the data will be used in the train/test/valid splits."
 	@echo ""
 	@echo "  Percentages may sum to less than 100, meaning only a"
 	@echo "  subset of the image data will be provided to the model."
 	@echo ""
-	@echo "Set the optional variable KERAS_RAND_SEED to affect the"
+	@echo "You may set the variable KERAS_RAND_SEED to affect the"
 	@echo "  random shuffling of image data before splitting into"
 	@echo "  train/test/valid data sets."
 	@echo ""
@@ -217,12 +217,14 @@ $(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso :
 	$(error ERROR: you must legally obtain a copy of $(@F) and place \
 		it in $(@D) to proceed)
 
+# These AVI files cost a lot of time to create.  Do not automatically
+# delete them, just in case.
+.SECONDARY : $(bg_avis) $(mask_avis) $(hist_avis)
+
 # This should be a static pattern rule, instead of just an implicit rule.
 # That way, if Make fails because it can't find the iso, then it will
 # give the iso error message, instead of giving the "no rule to make
 # target" message used when it can't find a chain of implicit rules.
-.SECONDARY : $(bg_avis) $(mask_avis) $(hist_avis)
-
 $(bg_avis) $(mask_avis) $(hist_avis) : %.avi : \
 	$(SCRIPTDIR)/record_avi.sh \
 	$(RECORDAVIDIR)/Super_Smash_Bros._Melee_(v1.02).iso \
