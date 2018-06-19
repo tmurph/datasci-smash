@@ -21,6 +21,7 @@ KERASDIR := $(DATADIR)/keras
 KERAS_TRAIN_PCT := 70
 KERAS_VALID_PCT := 20
 KERAS_TEST_PCT := 10
+KERAS_RAND_SEED := 1
 
 MAKEABLE_DIRS := $(IMAGEDIR) $(HISTDIR) $(MASKDIR) $(KERASDIR)
 
@@ -105,6 +106,10 @@ usage : # this happens when make is called with no arguments
 	@echo "  Percentages may sum to less than 100, meaning only a"
 	@echo "  subset of the image data will be provided to the model."
 	@echo ""
+	@echo "Set the optional variable KERAS_RAND_SEED to affect the"
+	@echo "  random shuffling of image data before splitting into"
+	@echo "  train/test/valid data sets."
+	@echo ""
 	@echo "Current scope is:"
 	@echo "  CHARACTERS="$(CHARACTERS)
 	@echo "  COLORS="$(COLORS)
@@ -121,6 +126,9 @@ usage : # this happens when make is called with no arguments
 	@echo "  KERAS_TRAIN_PCT="$(KERAS_TRAIN_PCT)
 	@echo "  KERAS_TEST_PCT="$(KERAS_TEST_PCT)
 	@echo "  KERAS_VALID_PCT="$(KERAS_VALID_PCT)
+	@echo ""
+	@echo "Current random seed is:"
+	@echo "  KERAS_RAND_SEED="$(KERAS_RAND_SEED)
 	@echo ""
 
 $(MAKEABLE_DIRS) :
@@ -354,7 +362,7 @@ $(KERASDIR)/labelled_image_mask_list : $(KERASDIR)/labelled_image_list \
 
 $(KERASDIR)/shuffled_image_mask_list : $(SCRIPTDIR)/random_shuffle.sh \
 				       $(KERASDIR)/labelled_image_mask_list
-	$(BASH) $< $(word 2,$^) | cut -d' ' -f 2- >$@
+	$(BASH) $< $(word 2,$^) $(KERAS_RAND_SEED) | cut -d' ' -f 2- >$@
 
 .INTERMEDIATE : $(KERASDIR)/folder_lists_done
 
