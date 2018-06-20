@@ -2865,6 +2865,7 @@ Sho didn’t!  If anything, that just made it better (25% more data!)
 
 ** Classification Task Writeup
 #+METADATA: (("git" ("suppress_outputs" . t)))
+#+TITLE: Classification of Characters in Super Smash Bros. Melee
 
 Note: *I am a data scientist in the Bay Area!  Feel free to contact me with questions, concerns, offers for work ;)*
 
@@ -2872,8 +2873,7 @@ Note: *I am a data scientist in the Bay Area!  Feel free to contact me with ques
 - [[https://www.linkedin.com/in/trevor-murphy-49ba1421][LinkedIn]]
 - [[https://github.com/tmurph][GitHub]]
 
-*** Classification of Characters in Super Smash Bros. Melee
-
+***  Executive Summary
 This notebook contains the code and resources to recognize the most common player avatars (hereafter, characters) used by professional players of the competitive fighting game Super Smash Bros. Melee.
 
 A neural network is given images captured from scripted game play and trained via transfer learning from VGG16.  In tests the network achieves ~96% classification accuracy after ~15 training epochs.  Here is a representative confusion matrix obtained after one such test:
@@ -2881,7 +2881,7 @@ A neural network is given images captured from scripted game play and trained vi
 #+ATTR_ORG: :width 600
 [[file:jupyter_images/confusion_matrix.png]]
 
-**** What is Transfer Learning?
+*** What is Transfer Learning?
 The following contains merely the briefest description of transfer learning.  [[https://machinelearningmastery.com/transfer-learning-for-deep-learning/][Many]] [[http://ruder.io/transfer-learning/][more]] [[https://www.analyticsvidhya.com/blog/2017/06/transfer-learning-the-art-of-fine-tuning-a-pre-trained-model/][thorough]] [[http://ftp.cs.wisc.edu/machine-learning/shavlik-group/torrey.handbook09.pdf][explanations]] exist and can be found with a simple Google search.  I assume the reader is already familiar with convolutional neural networks (CNN).
 
 With this project I aimed to train a neural network to classify custom-generated data with greater than 90% classification accuracy.  One might construct a neural network from scratch for this purpose, but such an approach would also raise significant challenges and force difficult tradeoffs between depth and cost[fn:1].  The desired accuracy would require a sufficiently deep network, while the cost to train such a network would increase rapidly with depth.
@@ -2896,9 +2896,9 @@ The last step in transfer learning is called “fine-tuning” and involves retr
 
 [fn:1] For this project, cost is measured in dollars spent on computational resources rented from Amazon EC2 instances.
 
-**** Transfer Learning Code
+*** Transfer Learning Code
 
-***** Review the Data
+**** Review the Data
 First, let’s have a look at the images used to train the CNN.  Over 100,000 images were used, so this is just a random sample.
 
 #+BEGIN_SRC jupyter
@@ -2970,7 +2970,7 @@ First, let’s have a look at the images used to train the CNN.  Over 100,000 im
 #+RESULTS: character_plots
 [[file:jupyter_images/character_plots.png]]
 
-These images were all captured from scripted gameplay.  The [[#BA2C6694-B88E-431B-905B-CC13917C214A][Data Generation]] section includes technical details on the capturing process.\\
+These images were all captured from scripted gameplay.  The [[#Data-Generation][Data Generation]] section includes technical details on the capturing process.\\
 \\
 Compare these images against the images used in the ImageNet competition to train VGG16.  E.g. [[http://imagenet.stanford.edu/synset?wnid=n02123394][these images from the persian cat category]].
 
@@ -2989,7 +2989,7 @@ Without additional metadata about the captured images, such as character boundin
 \\
 Despite these differences, VGG16 is able to extract useful features that lead to accurate image classification.  This is the power of award-winning neural networks and transfer learning.
 
-***** Extract Features
+**** Extract Features
 Running image data through VGG16 is computationally expensive, so we would like to do it just once and cache the results for the later fine-tuning work.  These results are typically thought of as “important features” that have been “extracted” from the image data, realized as a very large floating point array.\\
 \\
 This caching technique trades off increased memory requirements against decreased computational time.  Fortunately, memory is cheap relative to GPU compute, so this trade off makes sense for our problem.
@@ -3151,7 +3151,7 @@ Now we have our training and validation arrays, but they are in non-random order
     valid_labels = valid_labels[valid_random_index]
 #+END_SRC
 
-***** Train the Network
+**** Train the Network
 We’ll build our model in a CPU environment but compile it for a GPU environment.  Because our classes are relatively balanced in terms of number of images, we’ll use categorical crossentropy as our loss and classification accuracy as our metric.
 
 #+BEGIN_SRC jupyter
@@ -3252,7 +3252,7 @@ Before we save the =template_model=, however, we must remember that it is not ye
     full_model.save(os.path.join(DATA_DIR, datetime.datetime.today().strftime('%Y-%m-%d-%H-%M') + "-model.h5"))
 #+END_SRC
 
-***** Test the Network
+**** Test the Network
 
 To compare true classification labels with the predictions our model emits, we’ll need to iterate twice over our test images in deterministic order.  One pass will run the images through the model to produce predicted labels, and the other will collect the true labels for the images.
 
@@ -3332,7 +3332,7 @@ Now we can visualize our accuracy!
 #+RESULTS: confusion_matrix
 [[file:jupyter_images/confusion_matrix.png]]
 
-**** TODO Discussion
+*** TODO Discussion
 Far and away, the most time and effort went into generating the images, ensuring the data generation process was repeatable.  Over 99%.
 
 From testing, this much data really is necessary to get above 95% accuracy.  Perhaps because we’re not doing data augmentation?  Because we’re doing the feature-extraction-first trick.
@@ -3341,15 +3341,15 @@ Maybe could have gotten away with a simpler network?
 
 Next steps.  Localization!  Pose recognition (sorta, really just want to identify which of finitely many moves)!
 
-**** Appendix - Data Generation
+*** Appendix - Data Generation
 :PROPERTIES:
-:CUSTOM_ID:       BA2C6694-B88E-431B-905B-CC13917C214A
+:CUSTOM_ID:       Data-Generation
 :END:
 For interested parties, the following describes the code to generate the custom images.  Not all the code will be covered, in particular I assume the reader is familiar with [[https://www.gnu.org/software/make/manual/make.html][GNU Make]] and can read the [[file:Makefile][Makefile]] included in this repository.
 
 The images were generated with the [[https://dolphin-emu.org/][Dolphin emulator]] and [[https://www.ffmpeg.org/][ffmpeg]] on an early 2014 Macbook Air with a stock Intel HD Graphics 5000 graphics card.
 
-***** Install Dolphin
+**** Install Dolphin
 Dolphin 5.0 or higher is required.  You can [[https://dolphin-emu.org/download/][download]] and install the software from the Dolphin website, or follow the [[https://wiki.dolphin-emu.org/index.php?title=Installing_Dolphin][Dolphin wiki directions]] to install Dolphin via the package manager of your choice.
 
 Before you can generate images with Dolphin you’ll need to place a copy of the Super Smash Bros. Melee v1.02 ISO in the [[file:scripts/record_avi/][scripts/record_avi directory]].  It is my understanding that possession of a digital copy of this ISO file does not violate copyright law provided you also own a physical copy of the disc, however I am not a lawyer.  I do not recommend breaking the law in order to recreate this analysis.
@@ -3371,7 +3371,7 @@ Before you run any image generation code you will also need to configure Dolphin
 \\
 Once you have configured Dolphin, close the program.  Find your default user directory and copy it into the =scripts/record_avi= directory.  Rename the copied directory to =dolphin_user= if it is not already so named.
 
-***** Make Images and Masks
+**** Make Images and Masks
 From the command line execute =make= with no arguments to see a detailed usage message, including the documentation of configuration variables.
 
 The images for this analysis were generated with the following commands:\\
@@ -3383,12 +3383,12 @@ The images for this analysis were generated with the following commands:\\
 
 Note that proper mask generation requires recording a mask video that is frame-for-frame synchronized with a corresponding image video, and thus Dolphin must run at the same CPU speed during both image and mask video recording.  For this reason I recorded all videos on my laptop, as I could not force EC2 instances to run at any constant speed.
 
-**** Appendix - Data Preprocessing
-The following describes the code to preprocess previously generated images for keras modeling.  As with the [[#BA2C6694-B88E-431B-905B-CC13917C214A][data generation]] documentation, not all code will be covered.
+*** Appendix - Data Preprocessing
+The following describes the code to preprocess previously generated images for keras modeling.  As with the [[#Data-Generation][data generation]] documentation, not all code will be covered.
 
 Image preprocessing and keras modeling took place on an [[https://aws.amazon.com/ec2/instance-types/p2/][EC2 P2]] instance.
 
-***** Set up AWS
+**** Set up AWS
 Initialize an instance running the [[https://aws.amazon.com/marketplace/pp/B077GCZ4GR][Deep Learning Base AMI (Ubuntu)]].  I used Ubuntu 16.04 LTS and Python 3 for my data processing.  All required packages are listed in the [[file:ubuntu-packages.txt][ubuntu-packages.txt]] and [[file:requirements.txt][requirements.txt]] files.
 
 To get ready for data processing, clone this repository onto your instance and execute the following commands from the cloned directory.\\
@@ -3403,10 +3403,10 @@ I wish I could provide a docker instance for the complete setup, however the fin
 
 Note that you must create a fake ISO with =touch=.  The Makefile rules expect a file with this name, however as long as you are not doing any video recording you don’t need an actual copy of the real ISO.
 
-***** Split Data into Train/Test/Valid
+**** Split Data into Train/Test/Valid
 From the cloned repository directory, run =make dirs= to set up the necessary data directory structure.
 
-If you generated image and mask data according to [[#BA2C6694-B88E-431B-905B-CC13917C214A][the documentation]] above, copy all images into the =data/images= subfolder and copy all masks into the =data/masks= subfolder.\\
+If you generated image and mask data according to [[#Data-Generation][the documentation]] above, copy all images into the =data/images= subfolder and copy all masks into the =data/masks= subfolder.\\
 \\
 If, instead of generating image and mask data, you would like to download what was used in this analysis, execute the following commands from the cloned repository directory.\\
 \\
