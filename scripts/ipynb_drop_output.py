@@ -47,5 +47,5 @@ else:
         strip_output_from_cell(cell)
 
 # Dump the processed notebook to stdout.
-json.dump(json_in, sys.stdout, sort_keys=True, indent=1,
+json.dump(json_in, sys.stdout, sort_keys=True, indent=2,
           separators=(",",": "), ensure_ascii=False)
