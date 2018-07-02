@@ -2900,7 +2900,7 @@ The last step in transfer learning is called “fine-tuning” and involves retr
 *** Transfer Learning Code
 
 **** Review the Data
-First, let’s have a look at the images used to train the CNN.  Over 100,000 images were used, so this is just a random sample.
+First, let me show some of the images used to train the CNN.  Over 100,000 images were used, so this is just a random sample.
 
 #+BEGIN_SRC jupyter
     %matplotlib inline
@@ -2975,7 +2975,7 @@ These images were all captured from scripted gameplay.  The [[#Data-Generation][
 \\
 Compare these images against the images used in the ImageNet competition to train VGG16.  E.g. [[http://imagenet.stanford.edu/synset?wnid=n02123394][these images from the persian cat category]].
 
-Without additional metadata about the captured images, such as character bounding boxes or pose annotation points, we cannot easily compute rich statistics about the images.  However, visual inspection suggests the following differences to me:\\
+Without additional metadata about the captured images, such as character bounding boxes or pose annotation points, I cannot easily compute rich statistics about the images.  However, visual inspection suggests the following differences to me:\\
 \\
 - Size within frame ::
   - Characters in captured images rarely fill more than 10% of the frame
@@ -2991,13 +2991,13 @@ Without additional metadata about the captured images, such as character boundin
 Despite these differences, VGG16 is able to extract useful features that lead to accurate image classification.  This is the power of award-winning neural networks and transfer learning.
 
 **** Extract Features
-Running image data through VGG16 is computationally expensive, so we would like to do it just once and cache the results for the later fine-tuning work.  These results are typically thought of as “important features” that have been “extracted” from the image data, realized as a very large floating point array.\\
+Running image data through VGG16 is computationally expensive, so I will do it just once and cache the results for the later fine-tuning work.  These intermediate results I am caching are typically thought of as “important features” that have been “extracted” from the image data.  The extracted features are realized as a very large floating point array.\\
 \\
-This caching technique trades off increased memory requirements against decreased computational time.  Fortunately, memory is cheap relative to GPU compute, so this trade off makes sense for our problem.
+This caching technique trades off increased memory requirements against decreased computational time.  Fortunately, memory is cheap relative to GPU compute, so this trade off makes sense for my problem.
 
 The following code blocks set up the VGG model.\\
 \\
-We want to take advantage of the GPUs available to us, which we can do with the function =keras.utils.multi_gpu_model=.  This function accepts a template model (typically compiled for a CPU-only architecture) and creates an identical model compiled for a multi-GPU architecture.
+I want to take advantage of all the available GPUs, which I accomplish with the function =keras.utils.multi_gpu_model=.  This function accepts a template model (typically compiled for a CPU-only architecture) and creates an identical model compiled for a multi-GPU architecture.
 
 #+BEGIN_SRC jupyter
     import tensorflow as tf
@@ -3035,7 +3035,7 @@ We want to take advantage of the GPUs available to us, which we can do with the 
 
 The following code blocks set up the data flow into the model.\\
 \\
-As with most transfer learning work, we must preprocess our images to match key statistical features of the original data set.  The function =keras.applications.imagenet_utils.preprocess_input= does just this.
+As with most transfer learning work, I must preprocess the images to match key statistical features of the original data set.  The function =keras.applications.imagenet_utils.preprocess_input= does precisely this.
 
 #+BEGIN_SRC jupyter
     from keras.preprocessing.image import ImageDataGenerator
@@ -3065,22 +3065,22 @@ As with most transfer learning work, we must preprocess our images to match key 
         return image_generator
 #+END_SRC
 
-Due to the design of the Keras library, we can’t easily extract features from our images and simultaneously retain the image labels.  To work around this, we’re going to iterate over our images twice, in the same deterministic order both times, pulling out features one time and labels the other.
+Due to the design of the Keras library, I can’t retain the image labels through the image feature extraction code.  To work around this, I iterate over the images twice, in the same deterministic order both times, pulling out features one time and labels the other.
 
-For feature extraction, we will use the =model.predict_generator= API that requires a generator that emits solely arrays of images (as opposed to pairs like =(image_array, label_array)=).  To get this required generator we use =class_mode: None= and =shuffle: False=.
+For feature extraction, I use the =model.predict_generator= API, which requires a generator that emits solely arrays of images (as opposed to pairs like =(image_array, label_array)=).  To get this required generator I set the keyword parameter =class_mode=None=.  I also set the keyword parameter =shuffle=False= so that the features are extracted in deterministic order.
 
 #+BEGIN_SRC jupyter
     image_generator_train = make_generator("train", data_gen_args={"preprocessing_function": preprocess_input},
                                            data_flow_args={"batch_size": BATCH_SIZE, "class_mode": None, "shuffle": False})
 #+END_SRC
 
-For label extraction, we will use =shuffle: False= again to iterate in the same order as above, but we fall back to the default =class_mode= in order to retain the labels.=
+For label extraction, I set the keyword parameter =shuffle=False= again to iterate in the same order as above, but I fall back to the default =class_mode= in order to retain image labels.
 
 #+BEGIN_SRC jupyter
     label_generator_train = make_generator("train", data_gen_args={}, data_flow_args={"batch_size": BATCH_SIZE, "shuffle": False})
 #+END_SRC
 
-After we define some helper functions, we’ll finally be ready to extract our two arrays.
+Keras’ image data generator API will actually generate images indefinitely.  This supports the common use case of continuously running a neural network for an arbitrary number of epochs.  To end the generation early, I first define a few helper functions.
 
 #+BEGIN_SRC jupyter
     def count_images(folder="train"):
@@ -3104,7 +3104,7 @@ After we define some helper functions, we’ll finally be ready to extract our t
                 break
 #+END_SRC
 
-Note that the following code can take a significant amount of time to run.
+Now I extract the training image features and labels.  Note that the following code can take a significant amount of time to run.
 
 #+BEGIN_SRC jupyter
     image_count_train = count_images("train")
@@ -3119,7 +3119,7 @@ Note that the following code can take a significant amount of time to run.
     train_data = train_data[:image_count_train]
 #+END_SRC
 
-Now let’s extract the analogous pair of arrays for our validation data.
+Now I extract the analogous pair of arrays for the validation images.
 
 #+BEGIN_SRC jupyter
     image_count_valid = count_images("valid")
@@ -3138,7 +3138,7 @@ Now let’s extract the analogous pair of arrays for our validation data.
     valid_data = valid_data[:image_count_valid]
 #+END_SRC
 
-Now we have our training and validation arrays, but they are in non-random order.  Before we can train our final neural network we must randomize them, being careful to preserve the pairwise correlation between features and labels .
+Now I have training and validation arrays, but they are in non-random order.  Before training the neural network I randomize these arrays, being careful to preserve the pairwise correlation between features and labels.
 
 #+BEGIN_SRC jupyter
     train_random_index = np.arange(train_data.shape[0])
@@ -3153,7 +3153,7 @@ Now we have our training and validation arrays, but they are in non-random order
 #+END_SRC
 
 **** Train the Network
-We’ll build our model in a CPU environment but compile it for a GPU environment.  Because our classes are relatively balanced in terms of number of images, we’ll use categorical crossentropy as our loss and classification accuracy as our metric.
+In the following code, I build the model in a CPU environment but compile it for a GPU environment.  Because the class labels are relatively balanced in terms of number of images, I use categorical crossentropy as the loss function and classification accuracy as the headline metric.
 
 #+BEGIN_SRC jupyter
     from keras.models import Sequential
@@ -3192,7 +3192,7 @@ The following callbacks will, first, ensure early stopping in case of a bad mode
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=2, min_lr=0.00001)
 #+END_SRC
 
-Let’s visualize our model as a quick sanity check.
+Here’s a quick summary of the model, as a sanity check.
 
 #+BEGIN_SRC jupyter :exports both
     template_model = build_model(train_data.shape[1:], hidden_width=512, hidden_depth=3, dropout_rate=0.2)
@@ -3238,9 +3238,11 @@ Finally!  Time to train!
                                           callbacks=[stop_on_val_loss, reduce_lr])
 #+END_SRC
 
-Due to a bug in Keras, we cannot directly save the weights and structure of a model compiled for multiple GPUs.  However, the multi-GPU model object shares both structure and weights with the template model object, which we can save to disk.
-
-Before we save the =template_model=, however, we must remember that it is not yet useable for testing / production.  It expects an array of VGG16 features, but in testing we will provide new images.  So now we’ll stack the =template_model= on top of the =template_vgg_model= and save the result to disk.
+Due to a bug in Keras, I cannot directly save the weights and structure of a model compiled for multiple GPUs.  However, the multi-GPU model object shares both structure and weights with the template model object, which can be saved to disk.\\
+\\
+The =template_model=, however, is not yet useable for testing / production.  It expects an array of VGG16 features, but testing will instead provide images.\\
+\\
+The remedy is to first stack the =template_model= on top of the =template_vgg_model= and then save the stacked result to disk.
 
 #+BEGIN_SRC jupyter
     from keras.models import Model
@@ -3255,7 +3257,7 @@ Before we save the =template_model=, however, we must remember that it is not ye
 
 **** Test the Network
 
-To compare true classification labels with the predictions our model emits, we’ll need to iterate twice over our test images in deterministic order.  One pass will run the images through the model to produce predicted labels, and the other will collect the true labels for the images.
+To compare true classification labels with the predictions the model emits, I’ll iterate twice over the test images: one pass will run the images through the model to produce predicted labels; the other will collect the true labels for the images.
 
 #+BEGIN_SRC jupyter
     image_count_test = count_images("test")
@@ -3316,13 +3318,13 @@ To compare true classification labels with the predictions our model emits, we�
         plt.xlabel('Predicted label')
 #+END_SRC
 
-By default our class labels are encoded as integers, but we can find the actual class names as taken from the folder hierarchy if we know where to look.
+By default the class labels are encoded as integers, but the actual class names used by the =label_generator= object can be used instead.
 
 #+BEGIN_SRC jupyter 
     class_names = [c for c, i in sorted(label_generator_test.class_indices.items(), key=lambda pair: pair[1])]
 #+END_SRC
 
-Now we can visualize our accuracy!
+Visualize the model accuracy!
 
 #+NAME: confusion_matrix
 #+BEGIN_SRC jupyter :results file :eval never
@@ -3333,20 +3335,16 @@ Now we can visualize our accuracy!
 #+RESULTS: confusion_matrix
 [[file:jupyter_images/confusion_matrix.png]]
 
-*** TODO Discussion
-Far and away, the most time and effort went into generating the images, ensuring the data generation process was repeatable.  Over 99%.
+*** Discussion
+It is a truth universally acknowledged, that every data science project is 99% data and 1% science.  This project is hardly an exception.  Almost a thousand hours of individual effort went into the data generation process, while only a few tens of hours went into the model fitting and testing.  It is my hope that the generated images, as well as the flexible code behind them, will be of use to future projects; I have ambitions to train an object localizer and pose recognizer next.
 
-From testing, this much data really is necessary to get above 95% accuracy.  Perhaps because we’re not doing data augmentation?  Because we’re doing the feature-extraction-first trick.
-
-Maybe could have gotten away with a simpler network?
-
-Next steps.  Localization!  Pose recognition (sorta, really just want to identify which of finitely many moves)!
+From my testing of restricted data sets and various network designs, the full data set of ~150k images is necessary to train a model to achieve above 95% accuracy.  I attribute this requirement to two limitations of the model: first, I am transferring VGG16 to a domain almost totally unlike the original training environment; and second, my use of bottleneck feature extraction prevents data augmentation techniques.  If I had opted to spend more money on AWS compute, I could have experimented with less data and a completely novel neural network architecture.  For reasons outlined above, I chose to use the transfer learning technique specifically to take advantage of my large data set and to reduce AWS compute expenses.
 
 *** Appendix - Data Generation
 :PROPERTIES:
 :CUSTOM_ID:       Data-Generation
 :END:
-For interested parties, the following describes the code to generate the custom images.  Not all the code will be covered, in particular I assume the reader is familiar with [[https://www.gnu.org/software/make/manual/make.html][GNU Make]] and can read the [[file:Makefile][Makefile]] included in this repository.
+For interested parties, the following describes the code used to generate the custom images.  Not all the code will be covered, in particular I assume the reader is familiar with [[https://www.gnu.org/software/make/manual/make.html][GNU Make]] and can read the [[file:Makefile][Makefile]] included in this repository.
 
 The images were generated with the [[https://dolphin-emu.org/][Dolphin emulator]] and [[https://www.ffmpeg.org/][ffmpeg]] on an early 2014 Macbook Air with a stock Intel HD Graphics 5000 graphics card.
 
@@ -3382,10 +3380,10 @@ The images for this analysis were generated with the following commands:\\
 =$ make hist=\\
 =$ make masks=
 
-Note that proper mask generation requires recording a mask video that is frame-for-frame synchronized with a corresponding image video, and thus Dolphin must run at the same CPU speed during both image and mask video recording.  For this reason I recorded all videos on my laptop, as I could not force EC2 instances to run at any constant speed.
+Note that proper mask generation requires a masked video that is frame-for-frame synchronized with a corresponding image video, and thus Dolphin must run at the same CPU speed during both image and mask video recording.  For this reason I recorded all videos on my laptop, as I could not force EC2 instances to run at any constant speed.
 
 *** Appendix - Data Preprocessing
-The following describes the code to preprocess previously generated images for keras modeling.  As with the [[#Data-Generation][data generation]] documentation, not all code will be covered.
+The following describes the code used to preprocess generated images for keras modeling.  As with the [[#Data-Generation][data generation]] documentation, not all code will be covered.
 
 Image preprocessing and keras modeling took place on an [[https://aws.amazon.com/ec2/instance-types/p2/][EC2 P2]] instance.
 
