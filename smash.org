@@ -2866,7 +2866,6 @@ Sho didn’t!  If anything, that just made it better (25% more data!)
 ** Classification Task Writeup
 :PROPERTIES:
 :EXPORT_FILE_NAME: classification
-:EXPORT_METADATA: (("git" ("suppress_outputs" . t)))
 :EXPORT_TITLE: Classification of Characters in Super Smash Bros. Melee
 :END:
 #+SESSION: smash

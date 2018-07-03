@@ -1,5 +1,7 @@
 scripts/record_avi/*.iso
 data/
-jupyter_images/
+jupyter_images/*
+!jupyter_images/confusion_matrix.png
+!jupyter_images/character_plots.png
 dolphin-user/
 .ipynb_checkpoints/
