@@ -3421,3 +3421,17 @@ Note that you must =touch= all the downloaded image and mask data to let Make kn
 Finally, run =make keras= to create shuffled train/test/valid image data in the =keras/train=, =keras/test=, and =keras/valid= folders.\\
 \\
 You may set the Make variables =KERAS_RAND_SEED=, =KERAS_TRAIN_PCT=, =KERAS_TEST_PCT=, and =KERAS_VALID_PCT= to control the shuffling and splitting steps.
+
+* Readme for Github
+:PROPERTIES:
+:EXPORT_FILE_NAME: README
+:END:
+This repository contains my notes and work applying neural networks to footage from the [[https://en.wikipedia.org/wiki/Super_Smash_Bros._Melee][Super Smash Bros. Melee]] video game.
+
+Currently, I have used transfer learning techniques to train a VGG16-based neural network to classify images of single characters.  See the [[file:classification.ipynb][classification notebook]] for details.
+
+Next, I will train a network to locate a character within an image.  Then locate and classify two characters in the same image.
+
+After that, I will train a network to recognize the location and combat move of the characters within the image.
+
+Finally, I hope to make these networks fast enough to run concurrently with streaming video sessions, to enable real time analysis of matches in progress.
