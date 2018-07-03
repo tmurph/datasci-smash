@@ -2864,10 +2864,12 @@ Want to try including stadium, and see if that fucks anything up?
 Sho didn’t!  If anything, that just made it better (25% more data!)
 
 ** Classification Task Writeup
-#+METADATA: (("git" ("suppress_outputs" . t)))
+:PROPERTIES:
+:EXPORT_FILE_NAME: classification
+:EXPORT_METADATA: (("git" ("suppress_outputs" . t)))
+:EXPORT_TITLE: Classification of Characters in Super Smash Bros. Melee
+:END:
 #+SESSION: smash
-#+EXPORT_FILE_NAME: classification
-#+TITLE: Classification of Characters in Super Smash Bros. Melee
 
 Note: *I am a data scientist in the Bay Area!  Feel free to contact me with questions, concerns, offers for work ;)*
 
@@ -2875,7 +2877,7 @@ Note: *I am a data scientist in the Bay Area!  Feel free to contact me with ques
 - [[https://www.linkedin.com/in/trevor-murphy-49ba1421][LinkedIn]]
 - [[https://github.com/tmurph][GitHub]]
 
-***  Executive Summary
+*** Executive Summary
 This notebook contains the code and resources to recognize the most common player avatars (hereafter, characters) used by professional players of the competitive fighting game Super Smash Bros. Melee.
 
 A neural network is given images captured from scripted game play and trained via transfer learning from VGG16.  In tests the network achieves ~96% classification accuracy after ~15 training epochs.  Here is a representative confusion matrix obtained after one such test:
